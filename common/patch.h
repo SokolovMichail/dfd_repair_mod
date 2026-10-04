@@ -86,6 +86,20 @@ public:
     }
     static bool matches(uintptr_t at, const char* pattern) { return matchesAt(at, parse(pattern)); }
 
+    // Строка (с завершающим нулём) в секции: адрес первого вхождения или 0.
+    uintptr_t findString(const char* s, const char* sect = ".rdata") const {
+        Range r = section(sect);
+        size_t n = strlen(s) + 1;
+        for (uintptr_t p = r.begin; p + n <= r.end; ++p)
+            if (memcmp(reinterpret_cast<const void*>(p), s, n) == 0) return p;
+        return 0;
+    }
+
+    // Адрес, на который ссылается rip-относительный операнд: disp32 по смещению dispAt, длина инструкции len.
+    static uintptr_t ripTarget(uintptr_t insn, size_t dispAt, size_t len) {
+        return insn + len + *reinterpret_cast<const int32_t*>(insn + dispAt);
+    }
+
     // Первичная vtable класса по RTTI: ".?AV<cls>@@" -> TypeDescriptor -> CompleteObjectLocator
     // (offset 0) -> слот перед vtable. cls - полное имя с пространством имён, напр. "AmmoRechargerFacet@Leonardo".
     uintptr_t vtableOf(const char* cls) const {

@@ -8,10 +8,16 @@
 
 ### Что это
 
-Новая машина **HEMTT Spares** — HEMTT, который пополняет технике запчасти, как HEMTT Supply — боеприпасы.
-Нажмите **F4** (режим снабжения): вся техника в зоне (круг из гаечных ключей) получает запчасти. Или прикажите
-пополнить конкретную машину. Кампания Resistance: одна машина в магазине первого сектора, ещё — в тех же наградах,
-что и HEMTT Supply. Скирмиш: Основатели (Founders).
+Две новые машины снабжения на базе HEMTT. Обе разворачиваются кнопкой **F4** (режим снабжения) и работают по зоне:
+
+- **HEMTT Spares** пополняет технике запчасти, как HEMTT Supply — боеприпасы. Вся техника в зоне (круг из
+  гаечных ключей) получает запчасти. Можно и приказать пополнить конкретную машину.
+- **HEMTT Repair** (тестовая версия) чинит свою и союзную технику в зоне (круг из ключей и молотков): все
+  повреждённые модули и броню. Платит своими запчастями (везёт 10000): 1 за единицу здоровья модуля, 1 за 1 мм
+  брони; у ремонтируемой машины ничего не списывается. Себя и уничтоженную технику не чинит.
+
+Кампания Resistance: обе — по одной в магазине первого сектора; HEMTT Spares ещё и в тех же наградах, что
+HEMTT Supply. Скирмиш: Основатели (Founders).
 
 ### Требования
 
@@ -41,12 +47,12 @@
 | В логе | Что значит |
 |---|---|
 | `SparesSupply active` | всё работает |
-| `... not supported - nothing patched` | у вас другая сборка игры: плагин ничего не менял. Машина есть, но пополняет запчасти только по приказу, без кнопки F4. Сообщите автору и приложите лог |
+| `... not supported - nothing patched` | у вас другая сборка игры: плагин ничего не менял. HEMTT Spares пополняет запчасти только по приказу, без кнопки F4; HEMTT Repair не чинит. Сообщите автору и приложите лог |
 | файла нет | не загрузился `bin\winhttp.dll`: проверьте, что файлы лежат именно в `bin\` и `bin\plugins\`; посмотрите `bin\plugins\loader.log` |
 
 ### Что делают DLL
 
-Раздача по зоне требует небольшого нативного плагина — одними данными движок так не умеет.
+Раздача запчастей по зоне и ремонт требуют небольшого нативного плагина — одними данными движок так не умеет.
 `bin\winhttp.dll` только пересылает вызовы в системную `winhttp.dll` Windows и загружает `bin\plugins\*.dll`.
 `SparesSupply.dll` меняет `logic.dll` игры **в памяти**, пока игра запущена; файлы игры на диске не меняются.
 Перед любой правкой плагин проверяет, что код игры в точности такой, какой он ожидает, иначе ничего не трогает.
@@ -58,7 +64,7 @@
   `scripts/species/cars.xml`, `shop_presets.xml`, `encyclopedia_dlc.xml`, `scripts/default_army.toml`,
   `materials/rounds/sparesRecharge.material`, `locale/cars.xml`, `locale/encyclopedia_loc.xml`,
   `locale/encyclopedia_dlc_loc.xml`. Из нескольких таких модов в игре окажется файл только одного
-  (по приоритету в меню MODS) — машина или чужие правки пропадут.
+  (по приоритету в меню MODS) — машины или чужие правки пропадут.
 - Конфликтует с другими программами, которые тоже используют `bin\winhttp.dll` (некоторые трейнеры).
 - Обновление игры может заменить эти файлы — тогда понадобится новая версия мода.
 - Антивирус может насторожиться на подмену `winhttp.dll` — это ожидаемо для такого способа подключения.
@@ -75,8 +81,8 @@
    Если в `bin\plugins` есть плагины других модов — удалите только `SparesSupply.dll` и его `.log`,
    а `winhttp.dll` оставьте.
 
-Сохранения кампании, в которых уже есть HEMTT Spares, без мода могут не загрузиться — в машине используется
-юнит, которого нет в обычной игре. Перед удалением лучше закончить или начать новую кампанию.
+Сохранения кампании, в которых уже есть HEMTT Spares или HEMTT Repair, без мода могут не загрузиться — в них
+есть юниты, которых нет в обычной игре. Перед удалением лучше закончить или начать новую кампанию.
 
 ### Для разработки
 
@@ -89,10 +95,16 @@
 
 ### What it is
 
-New vehicle **HEMTT Spares** — a HEMTT that resupplies spare parts to your vehicles, the way HEMTT Supply does
-with ammunition. Press **F4** (Supply Mode): every vehicle inside the zone (marked with wrench icons) gets its
-spare parts refilled. Or order it to resupply a single vehicle. Resistance campaign: one in the first sector shop,
-more in the same sector rewards as HEMTT Supply. Skirmish: Founders.
+Two new HEMTT-based supply vehicles. Both deploy with **F4** (Supply Mode) and work on the zone:
+
+- **HEMTT Spares** resupplies spare parts, the way HEMTT Supply does with ammunition: every vehicle inside the
+  zone (marked with wrench icons) gets its spare parts refilled. You can also order it to resupply a single vehicle.
+- **HEMTT Repair** (test version) repairs your and allied vehicles in the zone (wrench-and-hammer icons): all
+  damaged modules and the armor. It pays with its own spare parts (carries 10000): 1 per module health point,
+  1 per mm of armor; the repaired vehicle pays nothing. It does not repair itself or destroyed vehicles.
+
+Resistance campaign: one of each in the first sector shop; HEMTT Spares also in the same sector rewards as
+HEMTT Supply. Skirmish: Founders.
 
 ### Requirements
 
@@ -122,12 +134,12 @@ After the game has started, open `<game>\bin\plugins\SparesSupply.log`. The last
 | Log says | Meaning |
 |---|---|
 | `SparesSupply active` | everything works |
-| `... not supported - nothing patched` | different game build: the plugin changed nothing. The vehicle exists but only resupplies on direct order (no F4). Please report it with the log |
+| `... not supported - nothing patched` | different game build: the plugin changed nothing. HEMTT Spares only resupplies on direct order (no F4); HEMTT Repair does not repair. Please report it with the log |
 | no log file | `bin\winhttp.dll` was not loaded: make sure the files are in `bin\` and `bin\plugins\`; see `bin\plugins\loader.log` |
 
 ### What the DLLs do
 
-Zone resupply needs a small native plugin — the engine cannot do it from data alone.
+Zone resupply and repair need a small native plugin — the engine cannot do it from data alone.
 `bin\winhttp.dll` only forwards calls to the Windows `winhttp.dll` and loads `bin\plugins\*.dll`.
 `SparesSupply.dll` changes the game's `logic.dll` **in memory** while the game runs; no game file on disk is
 modified. Before changing anything it verifies that the game code is exactly what it expects; otherwise it
@@ -149,5 +161,5 @@ changes nothing.
 2. Delete `<game>\mods\HEMTT_Spares`, `<game>\bin\winhttp.dll` and `<game>\bin\plugins`
    (if other mods' plugins are in `bin\plugins`, delete only `SparesSupply.dll` and its log and keep `winhttp.dll`).
 
-Campaign saves that already contain HEMTT Spares may fail to load without the mod. Finish the campaign or start
+Campaign saves that already contain HEMTT Spares or HEMTT Repair may fail to load without the mod. Finish the campaign or start
 a new one before uninstalling.

@@ -1,7 +1,8 @@
 # DFDRepairMod — моды для Terminator: Dark Fate – Defiance
 
 Проект целиком: нативные плагины (C++), сборка данных мода (Python), графика, упаковка релиза
-и инструменты разбора движка. Первый результат — мод **HEMTT Spares**.
+и инструменты разбора движка. Результат — мод **HEMTT Spares** с двумя машинами снабжения: HEMTT Spares
+(запчасти) и HEMTT Repair (ремонт и броня, пока тестовая).
 
 | Документ | О чём |
 |---|---|
@@ -10,21 +11,28 @@
 | [`docs/engine_notes.md`](docs/engine_notes.md) | что известно о движке (адреса, поля, слоты) |
 | [`re/README.md`](re/README.md) | инструменты разбора DLL игры |
 
-## HEMTT Spares
+## Машины
 
-Новая машина: HEMTT, который пополняет технике **запчасти** — как HEMTT Supply боеприпасы.
-F4 (режим снабжения) — раздача всем машинам в зоне (круг из гаечных ключей), или приказ на конкретную машину.
-Кампания Resistance: 1 шт. в магазине первого сектора + в тех же наградах, что HEMTT Supply. Скирмиш: Founders.
+Обе — копии HEMTT Supply (та же 3D-модель), разворачиваются кнопкой F4 (режим снабжения) и работают по зоне.
+Патроны не раздают. Скирмиш: Founders. Кампания Resistance — см. ниже.
 
-Состоит из двух частей:
+| Машина | sysname | Что делает | Круг зоны | Кампания |
+|---|---|---|---|---|
+| **HEMTT Spares** | `Fnd_HEMTT_repair` | пополняет запчасти всем машинам в зоне; или приказ на конкретную машину | гаечные ключи | 1 шт. в магазине первого сектора + в тех же наградах, что HEMTT Supply |
+| **HEMTT Repair** (тест) | `Fnd_HEMTT_repairer` | раз в 0,5 с чинит своим и союзным машинам в зоне все повреждённые модули (+2% максимума) и восстанавливает броню (+2% исходной толщины каждого слоя); себя и уничтоженных не чинит; платит своими запчастями (10000): 1 за единицу здоровья, 1 за 1 мм брони, у цели ничего не списывает | ключ и молоток | 1 шт. в магазине первого сектора |
 
-- **данные** — `mods/HEMTT_Spares`: юнит `Fnd_HEMTT_repair` (копия `Fnd_HEMTT_ammunition`,
-  `abilities=ammunition_recharge,support`, запчасти 10000, патроны 500), магазин, армия скирмиша,
-  локализация (en), значки, материал и текстура круга, иконка мода;
+Мод состоит из двух частей:
+
+- **данные** — `mods/HEMTT_Spares`: обе машины (копии `Fnd_HEMTT_ammunition`; Spares —
+  `abilities=ammunition_recharge,support`, запчасти 10000; Repair — `abilities=ammunition_recharge,repair`;
+  обе — патроны 500, лёгкая техника), магазин, армия скирмиша, локализация (en), значки, материалы и текстуры
+  кругов, иконка мода;
 - **плагин** — без него движок так не умеет (подробно — в начале
-  [`plugins/spares_supply/spares_supply.cpp`](plugins/spares_supply/spares_supply.cpp)):
-  разрешает `ammunition_recharge` рядом с `support` (кнопка F4), в режиме F4 включает и тикает компонент
-  запчастей, запрещает такой машине раздавать патроны, рисует круг материалом запчастей.
+  [`plugins/spares_supply/spares_supply.cpp`](plugins/spares_supply/spares_supply.cpp) и в
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)):
+  разрешает `ammunition_recharge` рядом с `support` / `repair` (кнопка F4), в режиме F4 тикает компонент
+  запчастей (Spares) или сам чинит модули и броню машинам в зоне (Repair — движковый ремонт недоделан),
+  запрещает машинам мода раздавать патроны, рисует круги своими материалами.
 
 Проверено на GOG 1.09.1221. Адреса в `logic.dll` не зашиты — плагин ищет их по байтовым шаблонам и RTTI,
 поэтому должен работать и на Steam. Не нашлось/не совпало хоть что-то — ничего не меняет и пишет в лог.
@@ -43,7 +51,8 @@ tools/                 gen_winhttp_proxy.py - генерация переход�
 mod/
   build_mod.py         сборка папки мода из актуальных файлов игры (что и откуда - в начале файла)
   package.py           архив релиза + обложка
-  art/                 графика: круг (make_circle_spares), значки юнита (make_unit_icons), иконка мода (make_mod_icon)
+  art/                 графика: круги (make_circle_spares, make_circle_repair), значки машин
+                       (make_unit_icons --kind spares|repair), иконка мода (make_mod_icon)
   tools/               gamefiles.py (поиск актуальной версии файла в слоях игры), patch_table.py (правка
                        Excel-XML таблиц), patch_army_toml.py, pak_extract.py (ручная распаковка), table_grep.py
   dist_files/          README для игроков (кладётся в архив)
@@ -84,7 +93,8 @@ cmake --build cmake-build-debug --target release
 ## Проверка в игре
 
 `bin\plugins\loader.log` — `loaded SparesSupply.dll`;
-`bin\plugins\SparesSupply.log` — `SparesSupply <версия> loaded` … `SparesSupply active`.
+`bin\plugins\SparesSupply.log` — `SparesSupply <версия> loaded` … `SparesSupply active`; во время работы
+HEMTT Repair — строки `repair: target=… +N hp, M armor layers`.
 Если там `not supported` — у игры другой код: смотреть, какой шаблон не нашёлся, и обновлять его через
 `re/mksig.py` (см. `docs/engine_notes.md`).
 

@@ -2,12 +2,13 @@
 
     python mod/build_mod.py --game <папка игры> --out <папка мода> [--cache <кэш>] [--version 1.0]
 
-Новая машина Fnd_HEMTT_repair («HEMTT Spares») - копия HEMTT Supply (Fnd_HEMTT_ammunition), который не меняется.
+Новые машины - копии HEMTT Supply (Fnd_HEMTT_ammunition), который не меняется (список - UNITS):
+Fnd_HEMTT_repair («HEMTT Spares», запчасти) и Fnd_HEMTT_repairer («HEMTT Repair», ремонт и броня).
 Файлы игры каждый раз берутся заново (gamefiles.py: последний архив/папка слоя, где файл есть),
 поэтому после обновления игры достаточно пересобрать.
 
-Без плагина SparesSupply.dll машина работает только частично: ammunition_recharge рядом с support не
-создаётся (нет кнопки F4), режим F4 не раздаёт запчасти; пополнение по клику работает.
+Без плагина SparesSupply.dll ammunition_recharge рядом с support/repair не создаётся (нет кнопки F4):
+HEMTT Spares пополняет запчасти только по клику, HEMTT Repair не делает ничего.
 """
 import argparse
 import json
@@ -20,21 +21,40 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'tools'))
 from gamefiles import Game  # noqa: E402
 
-UNIT = 'Fnd_HEMTT_repair'
 TEMPLATE = 'Fnd_HEMTT_ammunition'
-NAME = 'HEMTT Spares'
-DESC = ('A versatile four-axle truck platform with space for various truck beds and modules. '
-        'This version carries spare parts for field repairs.&#10;&#10;'
-        'Can be quickly deployed into a supply depot that resupplies nearby vehicles with spare parts.&#10;&#10;'
-        'Can tow light and heavy trailers except those requiring a fifth wheel mount.')
-# запчасти (support, 10000) + ammunition_recharge (500) только ради кнопки F4 - патроны не раздаёт (плагин)
-STATS = ['abilities=ammunition_recharge,support', 'capacity_ammo_recharger=500', 'spares=10000',
-         'unit_set=light_vehicle',
-         'tech_pic=vehicles_icons_small\\fnd_hemmit_spares',     # _preselected/_selected игра ищет сама
-         'garrison_pic=vehicles_icons_big\\fnd_hemmit_spares']
-# магазин кампании Resistance: 1 шт. в первом секторе + там же, где выдаётся HEMTT Supply
-SHOP = [('sector_1_reward', f',{UNIT}:1'), ('sector_11_reward', f',{UNIT}'),
-        ('sector_14_reward_1', f',{UNIT}'), ('sector_16_reward_2', f',{UNIT}')]
+COMMON_DESC = ('A versatile four-axle truck platform with space for various truck beds and modules. ')
+TOW_DESC = '&#10;&#10;Can tow light and heavy trailers except those requiring a fifth wheel mount.'
+
+# Машины мода - копии HEMTT Supply. ammunition_recharge (500) у обеих только ради кнопки F4:
+# патроны они не раздают (плагин). unit_set=light_vehicle - пока тест.
+UNITS = [
+    dict(
+        sysname='Fnd_HEMTT_repair',   # историческое имя: так называется HEMTT Spares в сохранениях
+        name='HEMTT Spares',
+        icon='fnd_hemmit_spares', icon_kind='spares',
+        desc=COMMON_DESC + 'This version carries spare parts for field repairs.&#10;&#10;'
+             'Can be quickly deployed into a supply depot that resupplies nearby vehicles with spare parts.' + TOW_DESC,
+        stats=['abilities=ammunition_recharge,support', 'capacity_ammo_recharger=500', 'spares=10000'],
+        # магазин кампании Resistance: 1 шт. в первом секторе + там же, где выдаётся HEMTT Supply
+        shop=[('sector_1_reward', ':1'), ('sector_11_reward', ''), ('sector_14_reward_1', ''),
+              ('sector_16_reward_2', '')],
+    ),
+    dict(
+        sysname='Fnd_HEMTT_repairer',
+        name='HEMTT Repair',
+        icon='fnd_hemmit_repair', icon_kind='repair',
+        desc=COMMON_DESC + 'This version is a mobile repair workshop.&#10;&#10;'
+             'Can be quickly deployed into a repair station that repairs damaged modules and restores the armor '
+             'of nearby friendly vehicles, using its own stock of spare parts.' + TOW_DESC,
+        # чинит из своего запаса запчастей (плагин): 1 за 1 здоровья модуля, 1 за 1 мм брони
+        stats=['abilities=ammunition_recharge,repair', 'capacity_ammo_recharger=500', 'spares=10000'],
+        shop=[('sector_1_reward', ':1')],   # пока тест: 1 шт. в первом секторе
+    ),
+]
+for u in UNITS:
+    u['stats'] = u['stats'] + ['unit_set=light_vehicle',
+                               'tech_pic=vehicles_icons_small\\' + u['icon'],   # _preselected/_selected игра ищет сама
+                               'garrison_pic=vehicles_icons_big\\' + u['icon']]
 
 # что брать из игры: слой -> файлы
 SOURCES = {
@@ -49,19 +69,24 @@ SOURCES = {
 }
 
 MOD_JSON = {
-    'name': NAME,
+    'name': 'HEMTT Spares',
     'description': (
-        'New vehicle HEMTT Spares - a HEMTT that resupplies spare parts to vehicles, '
-        'the way HEMTT Supply does with ammunition.\n'
-        'Deploy it with F4 (Supply Mode) to resupply all vehicles in the zone, or order it to resupply a single vehicle.\n\n'
-        'Resistance campaign: one in the first sector shop, more in the same sector rewards as HEMTT Supply.\n'
+        'New vehicles:\n'
+        '- HEMTT Spares resupplies spare parts to vehicles, the way HEMTT Supply does with ammunition. '
+        'Deploy it with F4 (Supply Mode) to resupply all vehicles in the zone, or order it to resupply a single vehicle.\n'
+        '- HEMTT Repair (test): deploy it with F4 to repair damaged modules and restore the armor of friendly '
+        'vehicles in the zone.\n\n'
+        'Resistance campaign: both in the first sector shop; HEMTT Spares also in the same sector rewards as '
+        'HEMTT Supply.\n'
         'Skirmish: available to Founders.\n\n'
-        'Zone resupply needs the native plugin from the archive (bin\\winhttp.dll and bin\\plugins\\SparesSupply.dll). '
+        'Needs the native plugin from the archive (bin\\winhttp.dll and bin\\plugins\\SparesSupply.dll). '
         'Single player only.'),
     'icon': 'basis/mod_icon.dds',
 }
 
-SPARES_MATERIAL = '''{
+# Материалы кругов зоны F4 (плагин рисует ими круг вместо ammoRecharge): имя файла -> текстура.
+CIRCLES = {'sparesRecharge': 'circle_spares', 'repairRecharge': 'circle_repair'}
+CIRCLE_MATERIAL = '''{
     "Colors": null,
     "Floats": {
         "segment_scale_x" : 0.6,
@@ -71,7 +96,7 @@ SPARES_MATERIAL = '''{
     "IsTransparent": true,
     "PS": "standard",
     "Textures": {
-        "albedo": "textures/cursor_decals/circle_spares.dds"
+        "albedo": "textures/cursor_decals/{texture}.dds"
     },
     "VS": "standard",
     "_Material": "StandardMaterial",
@@ -121,43 +146,55 @@ def main():
         json.dump(meta, f, ensure_ascii=False, indent=4)
     run('art/make_mod_icon.py', os.path.join(out, 'basis', 'mod_icon.dds'), env=env)
 
-    print('== unit icons, supply circle')
-    run('art/make_unit_icons.py', os.path.join(out, 'basis', 'textures'), env=env)
-    run('art/make_circle_spares.py', os.path.join(out, 'basis', 'textures', 'cursor_decals', 'circle_spares.dds'))
-    mat = os.path.join(out, 'basis', 'materials', 'rounds', 'sparesRecharge.material')
-    os.makedirs(os.path.dirname(mat))
-    with open(mat, 'w', encoding='utf-8', newline='\n') as f:
-        f.write(SPARES_MATERIAL)
+    print('== unit icons, supply circles')
+    textures = os.path.join(out, 'basis', 'textures')
+    for u in UNITS:
+        run('art/make_unit_icons.py', textures, '--kind', u['icon_kind'], env=env)
+    decals = os.path.join(textures, 'cursor_decals')
+    run('art/make_circle_spares.py', os.path.join(decals, 'circle_spares.dds'))
+    run('art/make_circle_repair.py', os.path.join(decals, 'circle_repair.dds'))
+    materials = os.path.join(out, 'basis', 'materials', 'rounds')
+    os.makedirs(materials)
+    for name, texture in CIRCLES.items():
+        with open(os.path.join(materials, f'{name}.material'), 'w', encoding='utf-8', newline='\n') as f:
+            f.write(CIRCLE_MATERIAL.replace('{texture}', texture))
 
-    print('== Resistance: unit, encyclopedia, shop')
+    # таблица заменяется целиком: каждая следующая правка - поверх результата предыдущей
+    def tables(src, dst, edits):
+        shutil.copy(src, dst)
+        for row, *args in edits:
+            table(dst, dst + '.tmp', row, *args)
+            os.replace(dst + '.tmp', dst)
+
+    clone = lambda extra: [(TEMPLATE, '--clone', u['sysname'], *extra(u)) for u in UNITS]
+
+    print('== Resistance: units, encyclopedia, shop')
     res = os.path.join(out, 'dlc', 'Resistance', 'basis', 'scripts', 'species')
     os.makedirs(res)
-    table(S('resistance', 'scripts/species/cars.xml'), os.path.join(res, 'cars.xml'), TEMPLATE, '--clone', UNIT, *STATS)
-    table(S('resistance', 'scripts/species/encyclopedia_dlc.xml'), os.path.join(res, 'encyclopedia_dlc.xml'),
-          TEMPLATE, '--clone', UNIT, 'image=vehicles_icons_big/fnd_hemmit_spares')
-    shop = os.path.join(res, 'shop_presets.xml')
-    shutil.copy(S('resistance', 'scripts/species/shop_presets.xml'), shop)
-    for row, add in SHOP:
-        table(shop, shop + '.tmp', row, f'cars+={add}')
-        os.replace(shop + '.tmp', shop)
+    tables(S('resistance', 'scripts/species/cars.xml'), os.path.join(res, 'cars.xml'), clone(lambda u: u['stats']))
+    tables(S('resistance', 'scripts/species/encyclopedia_dlc.xml'), os.path.join(res, 'encyclopedia_dlc.xml'),
+           clone(lambda u: [f'image=vehicles_icons_big/{u["icon"]}']))
+    tables(S('resistance', 'scripts/species/shop_presets.xml'), os.path.join(res, 'shop_presets.xml'),
+           [(row, f'cars+=,{u["sysname"]}{count}') for u in UNITS for row, count in u['shop']])
 
-    print('== base game (skirmish): unit, Founders army')
+    print('== base game (skirmish): units, Founders army')
     base = os.path.join(out, 'basis', 'scripts', 'species')
     os.makedirs(base)
-    table(S('base', 'scripts/species/cars.xml'), os.path.join(base, 'cars.xml'), TEMPLATE, '--clone', UNIT, *STATS)
+    tables(S('base', 'scripts/species/cars.xml'), os.path.join(base, 'cars.xml'), clone(lambda u: u['stats']))
     run('tools/patch_army_toml.py', S('base', 'scripts/default_army.toml'),
-        os.path.join(out, 'basis', 'scripts', 'default_army.toml'), f'add-car:founders:{TEMPLATE}:{UNIT}')
+        os.path.join(out, 'basis', 'scripts', 'default_army.toml'),
+        *[f'add-car:founders:{TEMPLATE}:{u["sysname"]}' for u in UNITS])
 
     print('== localization (en)')
     loc = os.path.join(out, 'localization', 'en', 'basis_en', 'locale')
     res_loc = os.path.join(out, 'dlc', 'Resistance', 'localization', 'en', 'basis_en', 'locale')
     os.makedirs(loc)
     os.makedirs(res_loc)
-    table(S('loc_en', 'locale/cars.xml'), os.path.join(loc, 'cars.xml'), TEMPLATE, '--clone', UNIT, f'content={NAME}')
-    table(S('loc_en', 'locale/encyclopedia_loc.xml'), os.path.join(loc, 'encyclopedia_loc.xml'),
-          TEMPLATE, '--clone', UNIT, f'name={NAME}', f'description={DESC}')
-    table(S('resistance_loc_en', 'locale/encyclopedia_dlc_loc.xml'), os.path.join(res_loc, 'encyclopedia_dlc_loc.xml'),
-          TEMPLATE, '--clone', UNIT, f'name={NAME}', f'description={DESC}')
+    article = lambda u: [f'name={u["name"]}', f'description={u["desc"]}']
+    tables(S('loc_en', 'locale/cars.xml'), os.path.join(loc, 'cars.xml'), clone(lambda u: [f'content={u["name"]}']))
+    tables(S('loc_en', 'locale/encyclopedia_loc.xml'), os.path.join(loc, 'encyclopedia_loc.xml'), clone(article))
+    tables(S('resistance_loc_en', 'locale/encyclopedia_dlc_loc.xml'),
+           os.path.join(res_loc, 'encyclopedia_dlc_loc.xml'), clone(article))
 
     print(f'built {out}')
 

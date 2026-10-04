@@ -46,8 +46,9 @@ def shrink(m, px):
     return m.filter(ImageFilter.MinFilter(k)) if k > 1 else m
 
 
-def render():
-    M = shape_mask()
+def render(M=None):
+    """Значок по маске формы (по умолчанию - ключ) в стиле circle_ammo."""
+    M = M if M is not None else shape_mask()
     inner = shrink(M, 2)                      # заливка
     outline = grow(M, 2)                      # тёмный контур
     shadow = grow(M, 5).filter(ImageFilter.GaussianBlur(3 * S))
