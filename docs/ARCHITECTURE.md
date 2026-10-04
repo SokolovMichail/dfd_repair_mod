@@ -8,7 +8,7 @@
 Мод добавляет две машины снабжения. Обе работают в режиме F4 так же, как HEMTT Supply раздаёт боеприпасы,
 только делают другое:
 
-- **HEMTT Spares** (`Fnd_HEMTT_repair`) — раздаёт всем машинам в зоне **запчасти**;
+- **HEMTT Spares** (`Fnd_HEMTT_spares`) — раздаёт всем машинам в зоне **запчасти**;
 - **HEMTT Repair** (`Fnd_HEMTT_repairer`, пока тестовая) — **чинит** модули своим и союзным машинам в зоне и
   **восстанавливает им броню**.
 
@@ -19,7 +19,7 @@
 
 ```
 ┌──────────────────────────── данные (mods/HEMTT_Spares) ─────────────────────────────┐
-│ Fnd_HEMTT_repair:   abilities = ammunition_recharge,support   (HEMTT Spares)          │
+│ Fnd_HEMTT_spares:   abilities = ammunition_recharge,support   (HEMTT Spares)          │
 │ Fnd_HEMTT_repairer: abilities = ammunition_recharge,repair    (HEMTT Repair)          │
 │ магазин кампании, армия скирмиша, локализация, значки, материалы кругов зоны          │
 └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -51,7 +51,7 @@
 
 | Файл мода | Что в нём |
 |---|---|
-| `basis/scripts/species/cars.xml`, `dlc/Resistance/.../cars.xml` | строки `Fnd_HEMTT_repair` и `Fnd_HEMTT_repairer` — копии `Fnd_HEMTT_ammunition` (её 3D-модель, ходовые качества). Spares: `abilities=ammunition_recharge,support`, `spares=10000`. Repair: `abilities=ammunition_recharge,repair`. Обе: `capacity_ammo_recharger=500`, `unit_set=light_vehicle` (пока тест), свои `tech_pic`/`garrison_pic`. Два файла, потому что скирмиш монтирует только основной слой, а кампания Resistance — ещё и слой DLC. |
+| `basis/scripts/species/cars.xml`, `dlc/Resistance/.../cars.xml` | строки `Fnd_HEMTT_spares` и `Fnd_HEMTT_repairer` — копии `Fnd_HEMTT_ammunition` (её 3D-модель, ходовые качества). Spares: `abilities=ammunition_recharge,support`, `spares=10000`. Repair: `abilities=ammunition_recharge,repair`. Обе: `capacity_ammo_recharger=500`, `unit_set=light_vehicle` (пока тест), свои `tech_pic`/`garrison_pic`. Два файла, потому что скирмиш монтирует только основной слой, а кампания Resistance — ещё и слой DLC. |
 | `basis/scripts/default_army.toml` | обе машины в списке Founders (скирмиш) |
 | `dlc/Resistance/.../shop_presets.xml` | Spares: 1 шт. в `sector_1_reward` + в наградах, где выдаётся HEMTT Supply. Repair: 1 шт. в `sector_1_reward` |
 | `dlc/Resistance/.../encyclopedia_dlc.xml` | статьи с собственными картинками |

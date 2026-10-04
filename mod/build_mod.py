@@ -3,7 +3,7 @@
     python mod/build_mod.py --game <папка игры> --out <папка мода> [--cache <кэш>] [--version 1.0]
 
 Новые машины - копии HEMTT Supply (Fnd_HEMTT_ammunition), который не меняется (список - UNITS):
-Fnd_HEMTT_repair («HEMTT Spares», запчасти) и Fnd_HEMTT_repairer («HEMTT Repair», ремонт и броня).
+Fnd_HEMTT_spares («HEMTT Spares», запчасти) и Fnd_HEMTT_repairer («HEMTT Repair», ремонт и броня).
 Файлы игры каждый раз берутся заново (gamefiles.py: последний архив/папка слоя, где файл есть),
 поэтому после обновления игры достаточно пересобрать.
 
@@ -29,7 +29,7 @@ TOW_DESC = '&#10;&#10;Can tow light and heavy trailers except those requiring a 
 # патроны они не раздают (плагин). unit_set=light_vehicle - пока тест.
 UNITS = [
     dict(
-        sysname='Fnd_HEMTT_repair',   # историческое имя: так называется HEMTT Spares в сохранениях
+        sysname='Fnd_HEMTT_spares',   # в версии 0.1 - Fnd_HEMTT_repair (сохранения 0.1 с этой машиной не загрузятся)
         name='HEMTT Spares',
         icon='fnd_hemmit_spares', icon_kind='spares',
         desc=COMMON_DESC + 'This version carries spare parts for field repairs.&#10;&#10;'
