@@ -50,14 +50,14 @@ plugins/spares_supply/ SparesSupply.dll
 tools/                 gen_winhttp_proxy.py - генерация переходников winhttp (нужен редко)
 mod/
   build_mod.py         сборка папки мода из актуальных файлов игры (что и откуда - в начале файла)
-  package.py           архив релиза + обложка
+  package.py           архив релиза + обложка (README для игроков - docs/Dist-readme.md)
   art/                 графика: круги (make_circle_spares, make_circle_repair), значки машин
                        (make_unit_icons --kind spares|repair), иконка мода (make_mod_icon)
   tools/               gamefiles.py (поиск актуальной версии файла в слоях игры), patch_table.py (правка
                        Excel-XML таблиц), patch_army_toml.py, pak_extract.py (ручная распаковка), table_grep.py
-  dist_files/          README для игроков (кладётся в архив)
 re/                    инструменты разбора DLL игры (см. re/README.md)
-docs/                  engine_notes.md - что известно о движке; исходный план HEMTT Spares
+docs/                  engine_notes.md - что известно о движке; Dist-readme.md - README для игроков в архиве;
+                       исходный план HEMTT Spares
 dist/                  результат «собрать релиз» (в git не кладётся)
 ```
 

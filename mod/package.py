@@ -32,7 +32,7 @@ def main():
             files.append((p, 'mods/HEMTT_Spares/' + os.path.relpath(p, mod).replace('\\', '/')))
     files += [(a.winhttp, 'bin/winhttp.dll'),
               (a.plugin, 'bin/plugins/SparesSupply.dll'),
-              (os.path.join(HERE, 'dist_files', 'HEMTT_Spares_README.txt'), 'HEMTT_Spares_README.txt')]
+              (os.path.join(HERE, '..', 'docs', 'Dist-readme.md'), 'HEMTT_Spares_README.txt')]
     missing = [p for p, _ in files if not os.path.isfile(p)]
     if missing:
         sys.exit('нет файлов: ' + ', '.join(missing))
