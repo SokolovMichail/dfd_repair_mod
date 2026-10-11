@@ -21,6 +21,8 @@ LAYERS = {
     'resistance': ('dlc/Resistance', '*.pak', 'basis'),
     'loc_en': ('localization/en', '*.pak', None),
     'resistance_loc_en': ('dlc/Resistance/localization/en', '*.pak', None),
+    'canada': ('dlc/Canada', '*.pak', 'basis'),
+    'canada_loc_en': ('dlc/Canada/localization/en', '*.pak', None),
 }
 
 

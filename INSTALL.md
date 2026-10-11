@@ -16,14 +16,14 @@
   повреждённые модули и броню. Платит своими запчастями (везёт 10000): 1 за единицу здоровья модуля, 1 за 1 мм
   брони; у ремонтируемой машины ничего не списывается. Себя и уничтоженную технику не чинит.
 
-Кампания Resistance: обе — по одной в магазине первого сектора; HEMTT Spares ещё и в тех же наградах, что
-HEMTT Supply. Скирмиш: Основатели (Founders).
+Основная кампания и кампания Canada: обе — во всех магазинах, по одной. Кампания Resistance: обе — по одной в магазине первого
+сектора; HEMTT Spares ещё и в тех же наградах, что HEMTT Supply. Скирмиш: Основатели (Founders).
 
 ### Требования
 
 - Terminator: Dark Fate – Defiance **1.09.1221** или новее, Windows 10/11 64-bit.
   Проверено на GOG-версии; Steam-версия должна работать (см. «Проверка»).
-- DLC Resistance — для кампании. Скирмиш работает и без него.
+- DLC Resistance — только для кампании Resistance. Основная кампания и скирмиш работают и без него.
 
 ### Установка
 
@@ -61,7 +61,7 @@ HEMTT Supply. Скирмиш: Основатели (Founders).
 
 - **Только одиночная игра.** В мультиплеере не использовать — будет рассинхрон.
 - Конфликтует с модами, которые заменяют те же файлы игры:
-  `scripts/species/cars.xml`, `shop_presets.xml`, `encyclopedia_dlc.xml`, `scripts/default_army.toml`,
+  `scripts/species/cars.xml`, `shop_presets.xml`, `encyclopedia.xml`, `encyclopedia_dlc.xml`, `scripts/default_army.toml`,
   `materials/rounds/sparesRecharge.material`, `locale/cars.xml`, `locale/encyclopedia_loc.xml`,
   `locale/encyclopedia_dlc_loc.xml`. Из нескольких таких модов в игре окажется файл только одного
   (по приоритету в меню MODS) — машины или чужие правки пропадут.
@@ -103,14 +103,14 @@ Two new HEMTT-based supply vehicles. Both deploy with **F4** (Supply Mode) and w
   damaged modules and the armor. It pays with its own spare parts (carries 10000): 1 per module health point,
   1 per mm of armor; the repaired vehicle pays nothing. It does not repair itself or destroyed vehicles.
 
-Resistance campaign: one of each in the first sector shop; HEMTT Spares also in the same sector rewards as
-HEMTT Supply. Skirmish: Founders.
+Main campaign and Canada campaign: one of each in every shop. Resistance campaign: one of each in the first sector shop; HEMTT Spares
+also in the same sector rewards as HEMTT Supply. Skirmish: Founders.
 
 ### Requirements
 
 - Terminator: Dark Fate – Defiance **1.09.1221** or newer, Windows 10/11 64-bit.
   Tested on GOG; the Steam version should work too (see "Check").
-- Resistance DLC for the campaign. Skirmish works without it.
+- Resistance DLC only for the Resistance campaign. The main campaign and skirmish work without it.
 
 ### Install
 
@@ -124,7 +124,7 @@ HEMTT Supply. Skirmish: Founders.
    <game>\bin\plugins\SparesSupply.dll
    ```
 3. Start the game → **MODS** → enable **HEMTT Spares**.
-4. Start a new mission. For the shop and sector rewards, start a new Resistance campaign.
+4. Start a new mission. To find the vehicles in shops and sector rewards, start a new campaign.
 
 ### Check
 
@@ -149,7 +149,7 @@ changes nothing.
 
 - **Single player only.** Do not use it in multiplayer (desync).
 - Conflicts with mods that replace the same game files: `scripts/species/cars.xml`, `shop_presets.xml`,
-  `encyclopedia_dlc.xml`, `scripts/default_army.toml`, `materials/rounds/sparesRecharge.material`,
+  `encyclopedia.xml`, `encyclopedia_dlc.xml`, `scripts/default_army.toml`, `materials/rounds/sparesRecharge.material`,
   `locale/cars.xml`, `locale/encyclopedia_loc.xml`, `locale/encyclopedia_dlc_loc.xml`.
 - Conflicts with other tools that also use `bin\winhttp.dll` (some trainers).
 - A game update may replace those files; a new mod version will then be needed.

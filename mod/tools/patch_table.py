@@ -6,6 +6,8 @@
 
     колонка=значение   -- заменить значение ячейки
     колонка+=добавка   -- дописать в конец ячейки (например, ",repair")
+    колонка,+=элемент  -- добавить элемент в список через запятую (запятая - только если нужна:
+                          ячейка не пустая и не кончается запятой)
     --clone NEW        -- скопировать строку под именем NEW (вставляется сразу после
                           исходной) и применить правки к копии; исходная строка не меняется
 
@@ -42,7 +44,10 @@ def cell_text(cell):
 def parse_edits(args):
     edits = []
     for a in args:
-        if "+=" in a:
+        if ",+=" in a:
+            name, value = a.split(",+=", 1)
+            edits.append((name, value, "list"))
+        elif "+=" in a:
             name, value = a.split("+=", 1)
             edits.append((name, value, True))
         elif "=" in a:
@@ -117,7 +122,10 @@ def main(src, dst, sysname, edit_args):
         cell = m.group()
         d = DATA_RE.search(cell)
         old = d.group(2) if d else ""
-        new = old + value if append else value
+        if append == "list":
+            new = old + ("," if old.strip() and not old.rstrip().endswith(",") else "") + value
+        else:
+            new = old + value if append else value
         if d:
             new_cell = cell[: d.start()] + d.group(1) + new + d.group(3) + cell[d.end():]
         else:  # пустая ячейка <Cell .../>

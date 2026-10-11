@@ -51,6 +51,15 @@ UNITS = [
         shop=[('sector_1_reward', ':1')],   # пока тест: 1 шт. в первом секторе
     ),
 ]
+# Основная кампания: все магазины (кроме тестовых test_shop_* и демо resistance_dlc_shop_demo) -
+# по одной машине каждого вида из UNITS.
+BASE_SHOPS = ['taos_shop_1', 'taos_shop_2', 'taos_shop_3', 'albuquerque_shop', 'res_sup_base_0', 'res_sup_base_1',
+              'vega_1_r', 'vega_1_m', 'tortuga_1', 'tortuga_2', 'tortuga_3', 'vega_2_r', 'vega_2_m',
+              'resistance_camp', 'integrators_main_1', 'integrators_main_2', 'integrators_main_2a',
+              'integrators_main_3', 'integrators_main_4', 'res_forward_post_0', 'integrators_scavengers_1',
+              'integrators_scavengers_2', 'resistance_far_recon']
+# DLC Canada (свои cars.xml, магазины, энциклопедия): все магазины - по одной машине каждого вида.
+CANADA_SHOPS = ['camp_1_shop', 'camp_2_shop', 'camp_3_shop', 'niagara_shop', 'resistance_camp']
 for u in UNITS:
     u['stats'] = u['stats'] + ['unit_set=light_vehicle',
                                'tech_pic=vehicles_icons_small\\' + u['icon'],   # _preselected/_selected игра ищет сама
@@ -58,7 +67,8 @@ for u in UNITS:
 
 # что брать из игры: слой -> файлы
 SOURCES = {
-    'base': ['scripts/species/cars.xml', 'scripts/default_army.toml'] +
+    'base': ['scripts/species/cars.xml', 'scripts/default_army.toml', 'scripts/species/shop_presets.xml',
+             'scripts/species/encyclopedia.xml'] +
             [f'textures/ui/pictures/tech_pic/vehicles_icons_{v}' for v in (
                 'big/fnd_hemmit_ammo.dds', 'small/fnd_hemmit_ammo.dds',
                 'small/fnd_hemmit_ammo_preselected.dds', 'small/fnd_hemmit_ammo_selected.dds')],
@@ -66,6 +76,8 @@ SOURCES = {
                    'scripts/species/shop_presets.xml'],
     'loc_en': ['locale/cars.xml', 'locale/encyclopedia_loc.xml'],
     'resistance_loc_en': ['locale/encyclopedia_dlc_loc.xml'],
+    'canada': ['scripts/species/cars.xml', 'scripts/species/encyclopedia_dlc.xml', 'scripts/species/shop_presets.xml'],
+    'canada_loc_en': ['locale/encyclopedia_dlc_loc.xml'],
 }
 
 MOD_JSON = {
@@ -171,13 +183,26 @@ def main():
     tables(S('resistance', 'scripts/species/shop_presets.xml'), os.path.join(res, 'shop_presets.xml'),
            [(row, f'cars+=,{u["sysname"]}{count}') for u in UNITS for row, count in u['shop']])
 
-    print('== base game (skirmish): units, Founders army')
+    print('== base game (main campaign, skirmish): units, shops, encyclopedia, Founders army')
     base = os.path.join(out, 'basis', 'scripts', 'species')
     os.makedirs(base)
     tables(S('base', 'scripts/species/cars.xml'), os.path.join(base, 'cars.xml'), clone(lambda u: u['stats']))
+    tables(S('base', 'scripts/species/shop_presets.xml'), os.path.join(base, 'shop_presets.xml'),
+           [(row, f'cars,+={u["sysname"]}') for row in BASE_SHOPS for u in UNITS])
+    tables(S('base', 'scripts/species/encyclopedia.xml'), os.path.join(base, 'encyclopedia.xml'),
+           clone(lambda u: [f'image=vehicles_icons_big/{u["icon"]}']))
     run('tools/patch_army_toml.py', S('base', 'scripts/default_army.toml'),
         os.path.join(out, 'basis', 'scripts', 'default_army.toml'),
         *[f'add-car:founders:{TEMPLATE}:{u["sysname"]}' for u in UNITS])
+
+    print('== Canada: units, encyclopedia, shops')
+    can = os.path.join(out, 'dlc', 'Canada', 'basis', 'scripts', 'species')
+    os.makedirs(can)
+    tables(S('canada', 'scripts/species/cars.xml'), os.path.join(can, 'cars.xml'), clone(lambda u: u['stats']))
+    tables(S('canada', 'scripts/species/encyclopedia_dlc.xml'), os.path.join(can, 'encyclopedia_dlc.xml'),
+           clone(lambda u: [f'image=vehicles_icons_big/{u["icon"]}']))
+    tables(S('canada', 'scripts/species/shop_presets.xml'), os.path.join(can, 'shop_presets.xml'),
+           [(row, f'cars,+={u["sysname"]}') for row in CANADA_SHOPS for u in UNITS])
 
     print('== localization (en)')
     loc = os.path.join(out, 'localization', 'en', 'basis_en', 'locale')
@@ -189,6 +214,10 @@ def main():
     tables(S('loc_en', 'locale/encyclopedia_loc.xml'), os.path.join(loc, 'encyclopedia_loc.xml'), clone(article))
     tables(S('resistance_loc_en', 'locale/encyclopedia_dlc_loc.xml'),
            os.path.join(res_loc, 'encyclopedia_dlc_loc.xml'), clone(article))
+    can_loc = os.path.join(out, 'dlc', 'Canada', 'localization', 'en', 'basis_en', 'locale')
+    os.makedirs(can_loc)
+    tables(S('canada_loc_en', 'locale/encyclopedia_dlc_loc.xml'),
+           os.path.join(can_loc, 'encyclopedia_dlc_loc.xml'), clone(article))
 
     print(f'built {out}')
 

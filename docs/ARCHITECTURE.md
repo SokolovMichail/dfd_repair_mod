@@ -54,7 +54,9 @@
 | `basis/scripts/species/cars.xml`, `dlc/Resistance/.../cars.xml` | строки `Fnd_HEMTT_spares` и `Fnd_HEMTT_repairer` — копии `Fnd_HEMTT_ammunition` (её 3D-модель, ходовые качества). Spares: `abilities=ammunition_recharge,support`, `spares=10000`. Repair: `abilities=ammunition_recharge,repair`. Обе: `capacity_ammo_recharger=500`, `unit_set=light_vehicle` (пока тест), свои `tech_pic`/`garrison_pic`. Два файла, потому что скирмиш монтирует только основной слой, а кампания Resistance — ещё и слой DLC. |
 | `basis/scripts/default_army.toml` | обе машины в списке Founders (скирмиш) |
 | `dlc/Resistance/.../shop_presets.xml` | Spares: 1 шт. в `sector_1_reward` + в наградах, где выдаётся HEMTT Supply. Repair: 1 шт. в `sector_1_reward` |
-| `dlc/Resistance/.../encyclopedia_dlc.xml` | статьи с собственными картинками |
+| `basis/scripts/species/shop_presets.xml` | основная кампания: обе машины во всех магазинах (список `BASE_SHOPS`; кроме тестовых `test_shop_*` и демо `resistance_dlc_shop_demo`), по одной. Добавляются правкой `cars,+=` — элемент списка через запятую. В кампаниях Resistance и Canada этот файл перекрывается их собственным |
+| `dlc/Canada/basis/scripts/species/{cars,encyclopedia_dlc,shop_presets}.xml`, `dlc/Canada/localization/en/.../encyclopedia_dlc_loc.xml` | DLC Canada со своими таблицами — то же, что для Resistance: обе машины (копии HEMTT Supply), статьи, обе во всех 5 магазинах (`CANADA_SHOPS`), по одной. Путь слоя мода `dlc/Canada/...` взят по аналогии с Resistance (тот проверен по `game.log`) |
+| `basis/scripts/species/encyclopedia.xml`, `dlc/Resistance/.../encyclopedia_dlc.xml` | статьи с собственными картинками (основная игра и Resistance) |
 | `localization/en/...`, `dlc/Resistance/localization/en/...` | имена «HEMTT Spares» / «HEMTT Repair» и тексты статей |
 | `basis/textures/ui/pictures/tech_pic/...fnd_hemmit_spares*.dds` | значки Spares: силуэт HEMTT с ящиком инструментов вместо снарядов ([`make_unit_icons.py`](../mod/art/make_unit_icons.py) `--kind spares`) |
 | `basis/textures/ui/pictures/tech_pic/...fnd_hemmit_repair*.dds` | значки Repair: кран-стрела с крюком (`make_unit_icons.py --kind repair`) |

@@ -21,6 +21,7 @@ HEMTT Repair (test version) - a mobile repair workshop.
   * It does not repair itself or destroyed vehicles.
   * Resistance campaign: one in the first sector shop.
 
+Main campaign and Canada campaign: one of each in every shop.
 Skirmish: both are available to Founders.
 
 REQUIREMENTS
@@ -54,7 +55,7 @@ WHAT THE DLLs DO
 NOTES
   * Single player only. Do not use it in multiplayer.
   * Conflicts with mods that replace the same game files: scripts/species/cars.xml,
-    shop_presets.xml, encyclopedia_dlc.xml, scripts/default_army.toml,
+    shop_presets.xml, encyclopedia.xml, encyclopedia_dlc.xml, scripts/default_army.toml,
     materials/rounds/sparesRecharge.material, locale/cars.xml, locale/encyclopedia_loc.xml,
     locale/encyclopedia_dlc_loc.xml.
   * Conflicts with other tools that also use bin\winhttp.dll (some trainers).
@@ -84,6 +85,7 @@ HEMTT Repair (тестовая версия) - передвижная ремон
   * Себя и уничтоженную технику не чинит.
   * Кампания Resistance: одна машина в магазине первого сектора.
 
+Основная кампания и кампания Canada: обе - во всех магазинах, по одной.
 Скирмиш: обе доступны Основателям (Founders).
 
 ТРЕБОВАНИЯ
