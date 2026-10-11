@@ -70,17 +70,11 @@ SOURCES = {
 
 MOD_JSON = {
     'name': 'HEMTT Spares',
+    # аннотация мода (~300 символов); перед ней сборка дописывает «Version X.»
     'description': (
-        'New vehicles:\n'
-        '- HEMTT Spares resupplies spare parts to vehicles, the way HEMTT Supply does with ammunition. '
-        'Deploy it with F4 (Supply Mode) to resupply all vehicles in the zone, or order it to resupply a single vehicle.\n'
-        '- HEMTT Repair (test): deploy it with F4 to repair damaged modules and restore the armor of friendly '
-        'vehicles in the zone.\n\n'
-        'Resistance campaign: both in the first sector shop; HEMTT Spares also in the same sector rewards as '
-        'HEMTT Supply.\n'
-        'Skirmish: available to Founders.\n\n'
-        'Needs the native plugin from the archive (bin\\winhttp.dll and bin\\plugins\\SparesSupply.dll). '
-        'Single player only.'),
+        'This mod adds two new mechanics: zone resupply of spare parts (like ammunition) and zone repair with '
+        'armor restoration, as well as two new vehicles to accommodate them - HEMTT Spares and HEMTT Repair, '
+        'respectively.'),
     'icon': 'basis/mod_icon.dds',
 }
 
