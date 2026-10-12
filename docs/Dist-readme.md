@@ -69,9 +69,19 @@ code is exactly what it expects; otherwise it changes nothing.
 * Conflicts with other tools that also use bin\winhttp.dll (some trainers).
 * Game updates may replace those files; then the mod needs an update too.
 
+## KNOWN ISSUES
+* Both vehicles temporarily use the model of HEMTT Ammo transporter.
+* Armor repair doesn't show in real time when clicked on a unit being repaired. Reselect the unit to see the progress.
+* The mouse pointer changes to yellow when selecting the modded trucks.
+
 ## UNINSTALL
 Disable the mod in MODS, then delete mods\HEMTT_Spares, bin\winhttp.dll and bin\plugins.
 Campaign saves that already contain HEMTT Spares or HEMTT Repair may fail to load without the mod.
+
+## SHOUT_OUTS
+Many thanks to:
+- Claude, for helping me create this mod
+- My family for endless support
 
 
 [RU]
@@ -81,18 +91,18 @@ Campaign saves that already contain HEMTT Spares or HEMTT Repair may fail to loa
 Мод добавляет две новые машины снабжения на базе HEMTT. Обе разворачиваются кнопкой F4 (режим снабжения).
 
 HEMTT Spares - пополняет вашей технике ЗАПЧАСТИ, так же как HEMTT Supply - боеприпасы.
-* Развёрнутая, пополняет запчасти всей технике в зоне. Зона отмечена гаечными ключами.
+* Когда развернута, пополняет запчасти всей технике в зоне. Зона отмечена гаечными ключами.
 * Можно приказать ей пополнить конкретную машину, как любому транспорту снабжения.
-* Везёт 10000 запчастей. Боеприпасы и топливо не раздаёт.
+* 10000 запчастей на борту. Боеприпасы и топливо не раздаёт.
 * Кампания Resistance: одна в магазине первого сектора, ещё - в тех же наградах за секторы,
   что и HEMTT Supply.
 * Основная кампания: по одной в каждом магазине.
 * Кампания Evolution: по одной в каждом магазине.
 
 HEMTT Repair - передвижная ремонтная мастерская.
-* Развёрнутая, чинит вашу и союзную технику в зоне: все повреждённые модули и изношенную
+* Когда развернута, чинит вашу и союзную технику в зоне: все повреждённые модули и поврежденную
   броню. Зона отмечена ключами и молотками.
-* Платит своими запчастями (везёт 10000): 1 за единицу здоровья модуля, 1 за 1 мм брони.
+* Платит своими запчастями (везёт 10000): 1 за единицу здоровья модуля и за 1 мм брони.
   У ремонтируемой машины ничего не списывается. Запас кончился - ремонт останавливается.
 * Себя и уничтоженную технику не чинит.
 * Кампания Resistance: одна в магазине первого сектора.
@@ -124,7 +134,7 @@ HEMTT Repair - передвижная ремонтная мастерская.
 только по приказу (без зоны F4), HEMTT Repair не чинит. Сообщите об этом и приложите лог.
 
 ## ЧТО ДЕЛАЮТ DLL
-Для раздачи по зоне и ремонта нужен маленький нативный плагин: данными движок так не умеет.
+Для раздачи по зоне и ремонта нужен маленький нативный плагин: по дефолту движок так не умеет.
 bin\winhttp.dll только пересылает вызовы в системную winhttp.dll и загружает
 bin\plugins\*.dll. SparesSupply.dll меняет logic.dll игры В ПАМЯТИ, пока игра запущена;
 файлы игры на диске не меняются. Перед любой правкой плагин проверяет, что код игры
@@ -139,6 +149,17 @@ bin\plugins\*.dll. SparesSupply.dll меняет logic.dll игры В ПАМЯ�
 * Конфликтует с другими программами, использующими bin\winhttp.dll (некоторые трейнеры).
 * Обновление игры может заменить эти файлы - тогда понадобится обновить и мод.
 
+## ИЗВЕСТНЫЕ ПРОБЛЕМЫ
+* Обе машины пока используют модель HEMTT Supply (транспорта боеприпасов).
+* Восстановление брони не отображается в реальном времени, если ремонтируемая машина выбрана.
+  Чтобы увидеть прогресс, выберите её заново.
+* При выборе машин мода курсор мыши становится жёлтым.
+
 ## УДАЛЕНИЕ
 Выключите мод в MODS, затем удалите mods\HEMTT_Spares, bin\winhttp.dll и папку bin\plugins.
 Сохранения кампании, где уже есть HEMTT Spares или HEMTT Repair, без мода могут не загрузиться.
+
+## БЛАГОДАРНОСТИ
+Огромное спасибо:
+- Claude - за помощь в создании мода
+- Моей семье - за бесконечную поддержку
