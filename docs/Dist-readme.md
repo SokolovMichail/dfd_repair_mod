@@ -54,7 +54,7 @@ spare parts on direct order (no F4 zone) and HEMTT Repair does not repair.
 Please report it together with the log.
 
 ## WHAT THE DLLs DO
-Zone resupply and repair need a small native plugin, because the game engine cannot do it from data.
+Zone resupply and repair need a small native plugin, because the game engine cannot do it out of the box.
 bin\winhttp.dll only forwards everything to the Windows winhttp.dll and loads
 bin\plugins\*.dll. SparesSupply.dll changes the game's logic.dll IN MEMORY while the game
 runs. No game file on disk is modified. Before changing anything it checks that the game
@@ -70,7 +70,7 @@ code is exactly what it expects; otherwise it changes nothing.
 * Game updates may replace those files; then the mod needs an update too.
 
 ## KNOWN ISSUES
-* Both vehicles temporarily use the model of HEMTT Ammo transporter.
+* Both vehicles temporarily use the model of HEMTT Supply (the ammunition truck).
 * Armor repair doesn't show in real time when clicked on a unit being repaired. Reselect the unit to see the progress.
 * The mouse pointer changes to yellow when selecting the modded trucks.
 
