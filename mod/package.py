@@ -3,7 +3,8 @@
     python mod/package.py --mod <собранная папка мода> --winhttp <winhttp.dll> --plugin <SparesSupply.dll>
                           --game-src <распакованные файлы игры, слой base> --version 0.1 --out <папка dist>
 
-Результат: <out>/HEMTT_Spares_v<версия>.zip и <out>/HEMTT_Spares_v<версия>_cover.png
+Результат: <out>/HEMTT_Spares_v<версия>.zip, <out>/HEMTT_Spares_v<версия>_cover.png (1920x1080)
+и <out>/HEMTT_Spares_v<версия>_banner.png (1300x372)
 """
 import argparse
 import os
@@ -15,6 +16,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():
+    """Собрать релиз: архив со структурой папки игры (README - с подставленной версией), обложку 1920x1080
+    и превью 1300x372."""
     ap = argparse.ArgumentParser()
     ap.add_argument('--mod', required=True)
     ap.add_argument('--winhttp', required=True)
@@ -54,6 +57,11 @@ def main():
     subprocess.run([sys.executable, os.path.join(HERE, 'art', 'make_mod_icon.py'), tmp_dds, cover], check=True, env=env)
     os.remove(tmp_dds)
     print(f'-> {cover}')
+
+    banner = os.path.join(a.out, f'HEMTT_Spares_v{a.version}_banner.png')  # превью 1300x372
+    subprocess.run([sys.executable, os.path.join(HERE, 'art', 'make_mod_icon.py'), '--banner', banner], check=True,
+                   env=env)
+    print(f'-> {banner}')
 
 
 if __name__ == '__main__':

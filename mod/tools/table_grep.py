@@ -3,6 +3,7 @@ import sys, re, xml.etree.ElementTree as ET
 NS={'ss':'urn:schemas-microsoft-com:office:spreadsheet'}
 A='{urn:schemas-microsoft-com:office:spreadsheet}'
 def sheets(path):
+    """Листы файла Excel-XML: (имя листа, строки); строка - {номер колонки: текст} с учётом ss:Index."""
     t=ET.parse(path).getroot()
     for ws in t.findall('ss:Worksheet',NS):
         rows=[]

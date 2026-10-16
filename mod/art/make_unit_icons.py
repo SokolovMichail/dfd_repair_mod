@@ -64,6 +64,7 @@ def cargo_base(size, off, shape):
 
 
 def downscale(layer, size):
+    """Уменьшить слой до размера значка с предумноженной альфой (иначе полупрозрачные края темнеют)."""
     # уменьшение с предумноженной альфой, чтобы края не темнели
     return layer.convert('RGBa').resize(size, Image.BOX).convert('RGBA')
 
@@ -114,6 +115,9 @@ KINDS = {'spares': ('fnd_hemmit_spares', toolbox_layer), 'repair': ('fnd_hemmit_
 
 
 def make(sub, suffix, off, cargo_layer=toolbox_layer):
+    """Один вариант значка: значок HEMTT Supply без снарядов + слой груза (cargo_layer). Прозрачность груза
+    подгоняется под вариант (у обычного маленького значка корпус 204/255).
+    Возвращает картинку и 128-байтный заголовок DDS исходника."""
     src = os.path.join(SRC, sub, f'fnd_hemmit_ammo{suffix}.dds')
     img = Image.open(src).convert('RGBA')
     # прозрачность варианта (обычный маленький значок - 204/255): по самому светлому пикселю корпуса
@@ -132,6 +136,7 @@ def make(sub, suffix, off, cargo_layer=toolbox_layer):
 
 
 def save(img, header, path):
+    """Записать значок с заголовком исходника; порядок байтов каналов - по маскам заголовка (RGBA или BGRA)."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     # порядок каналов - по маскам заголовка (у значков техники R = 0x000000FF, т.е. байты RGBA)
     rmask = struct.unpack_from('<I', header, 92)[0]

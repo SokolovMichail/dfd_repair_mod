@@ -1,3 +1,4 @@
+# python re/xref.py <dll> <строка...> - где код ссылается (lea) на строку; рядом - соседние строки.
 import struct,re,sys
 d=open(sys.argv[1],'rb').read()
 pe=struct.unpack_from('<I',d,0x3c)[0]
@@ -7,9 +8,11 @@ for i in range(nsec):
     o=pe+24+opt+40*i
     name=d[o:o+8].rstrip(b'\0').decode(); vs,va,rs,ra=struct.unpack_from('<IIII',d,o+8)
     secs.append((name,va,vs,ra,rs))
+# смещение в файле -> RVA
 def off2rva(off):
     for n,va,vs,ra,rs in secs:
         if ra<=off<ra+rs: return va+off-ra
+# RVA -> смещение в файле
 def rva2off(rva):
     for n,va,vs,ra,rs in secs:
         if va<=rva<va+rs: return ra+rva-va
@@ -21,6 +24,7 @@ refs=[]
 for m in re.finditer(rb'[\x48\x4c]\x8d[\x05\x0d\x15\x1d\x25\x2d\x35\x3d]',code,re.S):
     i=m.start(); disp=struct.unpack_from('<i',code,i+3)[0]
     refs.append((tva+i, tva+i+7+disp))
+# ASCII-строка по RVA или None
 def cstr(rva):
     o=rva2off(rva)
     if o is None: return None

@@ -1,6 +1,7 @@
 """Иконка мода для менеджера модов (1920x1080, DDS без сжатия, как в mods/mod_example_1).
 
     DFD_SRC=<файлы игры> python mod/art/make_mod_icon.py <выход.dds> [превью.png]
+    DFD_SRC=<файлы игры> python mod/art/make_mod_icon.py --banner <выход.png>   (превью 1300x372)
 
 Две машины мода на силуэте HEMTT Supply из распакованных файлов игры (DFD_SRC): HEMTT Spares с ящиком
 и HEMTT Repair с краном (грузы - из make_unit_icons.py), под каждой - круг зоны F4 своими значками
@@ -25,24 +26,25 @@ W, H = 1920, 1080
 FONT = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'Fonts', 'bahnschrift.ttf')
 
 
-def background():
-    img = Image.new('RGBA', (W, H))
+def background(w=W, h=H):
+    """Фон w x h: вертикальный градиент, диагональная штриховка, виньетка (её размер - пропорционально высоте)."""
+    img = Image.new('RGBA', (w, h))
     d = ImageDraw.Draw(img)
-    for y in range(H):
-        t = y / H
+    for y in range(h):
+        t = y / h
         c = tuple(int(a + (b - a) * t) for a, b in zip((30, 40, 46), (12, 16, 19)))
-        d.line([(0, y), (W, y)], fill=c + (255,))
+        d.line([(0, y), (w, y)], fill=c + (255,))
     # диагональная штриховка, как на карте кампании
-    hatch = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    hatch = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     hd = ImageDraw.Draw(hatch)
-    for x in range(-H, W, 28):
-        hd.line([(x, H), (x + H, 0)], fill=(255, 255, 255, 10), width=6)
+    for x in range(-h, w, 28):
+        hd.line([(x, h), (x + h, 0)], fill=(255, 255, 255, 10), width=6)
     img.alpha_composite(hatch)
     # виньетка
-    vig = Image.new('L', (W, H), 0)
-    ImageDraw.Draw(vig).ellipse([-300, -250, W + 300, H + 250], fill=255)
-    vig = vig.filter(ImageFilter.GaussianBlur(160))
-    dark = Image.new('RGBA', (W, H), (0, 0, 0, 255))
+    vig = Image.new('L', (w, h), 0)
+    ImageDraw.Draw(vig).ellipse([-300 * h // H, -250 * h // H, w + 300 * h // H, h + 250 * h // H], fill=255)
+    vig = vig.filter(ImageFilter.GaussianBlur(160 * h / H))
+    dark = Image.new('RGBA', (w, h), (0, 0, 0, 255))
     dark.putalpha(vig.point(lambda v: 255 - v))
     img.alpha_composite(dark)
     return img
@@ -90,22 +92,25 @@ def truck(img, cx, base_y, width, cargo_layer):
 
 
 def font(size, weight):
+    """Шрифт Bahnschrift заданного размера и начертания (Bold, SemiBold, ...)."""
     f = ImageFont.truetype(FONT, size)
     f.set_variation_by_name(weight)
     return f
 
 
 def centered(img, x, y, s, f, fill, glow=False):
+    """Текст s по центру x, верх на высоте y; glow - с размытой тёмной подложкой для читаемости."""
     d = ImageDraw.Draw(img)
     tw = d.textlength(s, font=f)
     if glow:
-        g = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        g = Image.new('RGBA', img.size, (0, 0, 0, 0))
         ImageDraw.Draw(g).text((x - tw / 2, y), s, font=f, fill=(0, 0, 0, 200))
         img.alpha_composite(g.filter(ImageFilter.GaussianBlur(12)))
     d.text((x - tw / 2, y), s, font=f, fill=fill)
 
 
 def render():
+    """Иконка мода 1920x1080: заголовок, подзаголовок, обе машины с кругами зоны и подписями."""
     img = background()
     cream, amber = (236, 230, 214, 255), (214, 166, 98, 255)
     centered(img, W / 2, 60, 'HEMTT SPARES', font(170, 'Bold'), cream, glow=True)
@@ -120,6 +125,29 @@ def render():
         zone_ring(img, icon, cx, cy, 400, 120)
         truck(img, cx, cy + 30, 700, cargo)
         centered(img, cx, cy + 190, label, font(54, 'SemiBold'), cream)
+    return img
+
+
+BANNER = (1300, 372)
+
+
+def render_banner():
+    """Широкая превью 1300x372 для страницы мода: слева название, справа обе машины с кругами зоны."""
+    bw, bh = BANNER
+    img = background(bw, bh)
+    cream, amber = (236, 230, 214, 255), (214, 166, 98, 255)
+    centered(img, 320, 110, 'HEMTT SPARES', font(84, 'Bold'), cream, glow=True)
+    centered(img, 320, 215, 'SPARE PARTS SUPPLY  +  FIELD REPAIR', font(27, 'SemiBold'), amber)
+    units = [
+        (790, make_unit_icons.toolbox_layer, make_circle_spares.render(), 'SPARE PARTS'),
+        (1130, make_unit_icons.crane_layer, make_circle_spares.render(make_circle_repair.shape_mask_repair()),
+         'REPAIR & ARMOR'),
+    ]
+    cy = 248
+    for cx, cargo, icon, label in units:
+        zone_ring(img, icon, cx, cy, 132, 40, n=14, size=26)
+        truck(img, cx, cy + 12, 265, cargo)
+        centered(img, cx, cy + 62, label, font(24, 'SemiBold'), cream)
     return img
 
 
@@ -146,6 +174,9 @@ def save_dds(img, path):
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         sys.exit(__doc__)
+    if sys.argv[1] == '--banner':  # make_mod_icon.py --banner <выход.png>
+        render_banner().convert('RGB').save(sys.argv[2])
+        sys.exit()
     icon = render()
     save_dds(icon, sys.argv[1])
     if len(sys.argv) > 2:

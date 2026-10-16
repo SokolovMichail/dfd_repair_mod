@@ -16,8 +16,10 @@ CACHE = os.path.join(HERE, 'cache')
 
 
 def dll_path(name=None):
+    """Путь к DLL игры для разбора (name или DLL, по умолчанию logic.dll)."""
     return os.path.join(GAME_DIR, 'bin', name or DLL)
 
 
 def pkl_path(name=None):
+    """Путь к кэшу дизассемблера этой DLL (re/cache/<dll>.pkl)."""
     return os.path.join(CACHE, (name or DLL).replace('.dll', '.pkl'))

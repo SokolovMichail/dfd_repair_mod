@@ -112,15 +112,19 @@ CIRCLE_MATERIAL = '''{
 
 
 def run(script, *args, env=None):
+    """Запустить скрипт проекта (путь относительно mod/) текущим Python; ошибка - исключение."""
     env = dict(env or os.environ, PYTHONIOENCODING='utf-8')  # консоль CMake/cmd - не UTF-8
     subprocess.run([sys.executable, os.path.join(HERE, script), *args], check=True, env=env)
 
 
 def table(src, dst, row, *edits):
+    """Одна правка таблицы игры через tools/patch_table.py: src -> dst, строка row, правки edits."""
     run('tools/patch_table.py', src, dst, row, *edits)
 
 
 def main():
+    """Собрать папку мода: достать актуальные файлы игры, сгенерировать графику и материалы кругов, поправить
+    таблицы всех слоёв (основная игра, Resistance, Canada) и локализацию, записать mod.json."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--game', required=True)
     ap.add_argument('--out', required=True, help='папка мода, например .../mods/HEMTT_Spares (пересоздаётся)')
@@ -167,6 +171,8 @@ def main():
 
     # таблица заменяется целиком: каждая следующая правка - поверх результата предыдущей
     def tables(src, dst, edits):
+        """Скопировать таблицу src в dst и применить к копии правки edits по очереди (каждая - аргументы
+        patch_table.py, первым идёт sysname строки)."""
         shutil.copy(src, dst)
         for row, *args in edits:
             table(dst, dst + '.tmp', row, *args)

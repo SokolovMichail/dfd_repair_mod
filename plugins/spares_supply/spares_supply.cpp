@@ -160,12 +160,16 @@ struct RefBlock {
     void* object;
 };
 
+// Вызвать виртуальный метод объекта движка по смещению слота в его vtable (offset = 8 * номер слота),
+// как это делает сам движок: call [vtbl+offset] с obj первым аргументом. R - тип результата.
 template <class R, class... A>
 R vcall(void* obj, size_t offset, A... args) {
     auto vtbl = *reinterpret_cast<void***>(obj);
     return reinterpret_cast<R (*)(void*, A...)>(vtbl[offset / 8])(obj, args...);
 }
 
+// Отпустить сильную ссылку, полученную от движка (как делает он сам): уменьшить счётчик и, если он
+// дошёл до нуля, вызвать освобождение (слот +0x10 блока).
 void release(RefBlock* rb) {
     if (rb && --rb->strong == 0) vcall<void>(rb, 0x10);
 }
@@ -181,18 +185,22 @@ FacetFn g_origRepairOn, g_origRepairOff;
 CanRechargeFn g_origAmmoCanRecharge;
 UpdateFn g_origSparesUpdate, g_origAmmoUpdate, g_origFuelUpdate, g_origRepairUpdate;
 
+// Машина, которой принадлежит компонент: блок ссылки в [facet+0x10] -> объект. nullptr, если нет.
 void* ownerOf(void* facet) {
     auto rb = *reinterpret_cast<RefBlock**>(static_cast<char*>(facet) + 0x10);
     return rb ? rb->object : nullptr;
 }
 
+// Включён ли компонент-раздатчик: у них байт «выключен» по смещению offFlag (kRechargerOffFlag /
+// kSparesOffFlag), включён - когда он равен 0. Так же устроен их слот 12 isActive.
 bool isOn(void* facet, size_t offFlag) {
     return *(static_cast<uint8_t*>(facet) + offFlag) == 0;
 }
 
-// Компонент машины с точным классом (по адресу vtable) - как в logic.dll 0x57490 / 0xce070:
+// Найти у машины компонент точного класса (сравнением адреса vtable с vtbl) - так же, как это делает
+// logic.dll в 0x57490 / 0xce070. Возвращает компонент или nullptr (нет машины / нет такого компонента).
 // entity->vfunc(+0x58) отдаёт итератор: +0x18 конец?, +0x30 текущий (блок ссылки), +0x20 следующий,
-// +0x00 удаляющий деструктор.
+// +0x00 удаляющий деструктор. Итератор освобождаем сами.
 void* findFacet(void* entity, uintptr_t vtbl) {
     if (!entity) return nullptr;
     void* it = nullptr;
@@ -212,11 +220,14 @@ void* findFacet(void* entity, uintptr_t vtbl) {
     return found;
 }
 
+// Компонент запчастей (SparesRechargerFacet) той же машины, что и facet; nullptr, если его нет.
 void* sparesOf(void* facet) {
     return findFacet(ownerOf(facet), g_a.sparesVt);
 }
 
-// Чем на самом деле занимается машина с компонентом боеприпасов (у машин снабжения он только ради F4).
+// Чем на самом деле занимается машина с компонентом боеприпасов (у машин мода он только ради F4):
+// Spares - есть компонент запчастей (HEMTT Spares), Repair - есть компонент ремонта (HEMTT Repair),
+// Ammo - ни того ни другого (обычный HEMTT Supply и прочие - их не трогаем).
 enum class Kind { Ammo, Spares, Repair };
 Kind kindOf(void* ammo) {
     void* owner = ownerOf(ammo);
@@ -225,6 +236,8 @@ Kind kindOf(void* ammo) {
     return Kind::Ammo;
 }
 
+// Записать событие в лог (только первые 50 за запуск, чтобы лог не разрастался): что случилось,
+// с каким компонентом и какой машиной.
 void trace(const char* what, void* facet) {
     if (g_events < 50) {
         ++g_events;
@@ -232,7 +245,9 @@ void trace(const char* what, void* facet) {
     }
 }
 
-// Включить/выключить запчасти у той же машины, что и recharger.
+// Включить (on) или выключить запчасти у той же машины, что и recharger (боеприпасы или заправщик).
+// Вызывается при включении/выключении режима F4. Если запчастей нет или они уже в нужном состоянии -
+// ничего не делает. Вызывает исходные функции, минуя перехват hookSparesOff.
 void syncSpares(void* recharger, bool on) {
     void* spares = sparesOf(recharger);
     if (!spares) return;
@@ -251,10 +266,13 @@ void syncSpares(void* recharger, bool on) {
 std::unordered_set<void*> g_ownCircles;
 bool g_circleWritable = false;
 
+// Объект нарисованного круга зоны у компонента боеприпасов ([ammo+0x50]); nullptr, если круга нет.
 void* circleOf(void* ammo) {
     return *reinterpret_cast<void**>(static_cast<char*>(ammo) + kAmmoCircleField);
 }
 
+// Подставить в инструкцию lea r8,[rax+disp32] функции круга смещение строки материала в таблице:
+// kMaterialSpares (0xE0) перед перерисовкой круга HEMTT Spares, kMaterialAmmo (0x120) - вернуть обратно.
 void setCircleMaterial(uint32_t offset) {
     // страница с инструкцией сделана записываемой при установке
     *reinterpret_cast<uint32_t*>(g_a.circleLea + 3) = offset;
@@ -281,7 +299,10 @@ void showCircleWithPath(void* ammo, const char* path) {
     *entry = saved;
 }
 
-// Если у боеприпасов есть круг с материалом патронов - пересоздать его своим материалом.
+// Если у компонента боеприпасов есть круг, ещё нарисованный материалом патронов, - пересоздать его
+// материалом машины мода: Spares - подменой смещения в lea (setCircleMaterial), Repair - подменой
+// строки в таблице (showCircleWithPath). Новые круги запоминаются в g_ownCircles, чтобы не
+// перерисовывать их каждый кадр. Для обычных машин (Kind::Ammo) ничего не делает.
 void convertCircle(void* ammo, Kind kind) {
     void* c = circleOf(ammo);
     if (!c || kind == Kind::Ammo || g_ownCircles.count(c)) return;
@@ -302,7 +323,9 @@ void convertCircle(void* ammo, Kind kind) {
 using IncHealthFn = void (*)(void* modules, size_t index, int amount);
 using DiplomacyFn = void* (*)(void* world);
 
-// Свой или союзник - как в AmmoRechargerFacet::canRecharge: отношение команд 2 или 4 - нельзя.
+// Можно ли чинить target машине owner: свой или союзник - та же проверка, что в
+// AmmoRechargerFacet::canRecharge. Дипломатия мира (0x541a00) сравнивает команды цели и владельца;
+// отношение 2 или 4 - нельзя. Цель без команды (или нет дипломатии) - тоже нельзя.
 bool friendly(void* owner, void* target) {
     void* dip = reinterpret_cast<DiplomacyFn>(g_a.diplomacy)(vcall<void*>(owner, 0x78));
     if (!dip) return false;
@@ -320,6 +343,7 @@ struct Repaired {
     int spent = 0;   // сколько запчастей потрачено
 };
 
+// Запас запчастей машины - int в её DamageableModulesFacet ([+0x130]); ссылка, чтобы можно было менять.
 int& sparesOfModules(void* modules) {
     return *reinterpret_cast<int*>(static_cast<char*>(modules) + kModulesSpares);
 }
@@ -328,6 +352,8 @@ int& sparesOfModules(void* modules) {
 struct Stock {
     int& spares;
     float& debt;
+    // Заплатить cost запчастей: цена копится в debt, со склада списывается целая часть (но не больше,
+    // чем есть). Потраченное прибавляется к r.spent.
     void pay(float cost, Repaired& r) {
         debt += cost;
         int whole = std::min(spares, static_cast<int>(debt));
@@ -343,6 +369,8 @@ struct ArmorSide {
     const char* lay;
     size_t n;
 };
+// Слои брони стороны side (0..5) модуля mod с описанием desc. n - сколько слоёв есть и в текущей
+// толщине, и в описании (на случай, если длины векторов почему-то разошлись).
 ArmorSide armorSide(char* mod, const char* desc, int side) {
     auto cur = reinterpret_cast<float**>(mod + kModuleArmor + side * 0x18);         // begin, end
     auto lay = reinterpret_cast<char* const*>(desc + kDescArmor + side * 0x18);   // begin, end
@@ -350,6 +378,13 @@ ArmorSide armorSide(char* mod, const char* desc, int side) {
     return {cur[0], lay[0], n};
 }
 
+// Один импульс ремонта одной машины (modules - её DamageableModulesFacet) за счёт склада stock:
+//  - каждому повреждённому модулю +kRepairFraction от максимума (не больше недостающего и не больше
+//    остатка склада) через движковый incHealth; запчасти, которые incHealth списал у цели, возвращаем;
+//  - каждому изношенному слою брони +kArmorFraction исходной толщины (не выше исходной), по kSparesPerMm
+//    запчастей за миллиметр.
+// Уничтоженную машину (общее здоровье 0) не трогает. Останавливается, когда склад пуст.
+// Возвращает, сколько здоровья и слоёв восстановлено и сколько запчастей потрачено.
 Repaired repairVehicle(void* modules, Stock stock) {
     Repaired r;
     auto m = static_cast<char*>(modules);
@@ -393,7 +428,10 @@ std::unordered_map<void*, float> g_repairTimers;  // компонент боеп
 std::unordered_map<void*, float> g_armorDebt;     // компонент боеприпасов -> недосписанная цена брони
 int g_repairLogs = 0;
 
-// Режим F4 у HEMTT Repair: импульс ремонта по машинам, собранным компонентом боеприпасов.
+// Режим F4 у HEMTT Repair (вызывается каждый кадр из hookAmmoUpdate): раз в kRepairPeriod секунд -
+// импульс ремонта по машинам, которые компонент боеприпасов собрал в зоне ([ammo+0x30]). Пропускает
+// саму HEMTT Repair, чужих и машины без модулей (пехоту). Платит запчастями самой HEMTT Repair;
+// склад пуст - ничего не делает. Первые 40 импульсов с результатом пишет в лог.
 void tickRepair(void* ammo, float dt) {
     float& left = g_repairTimers[ammo];
     left -= dt;
@@ -425,6 +463,9 @@ void tickRepair(void* ammo, float dt) {
 
 void hookSparesUpdate(void* spares, float dt);
 
+// Перехват AmmoRechargerFacet::activate (слот 14) - режим F4 включён. Сначала оригинал (включает
+// компонент и рисует круг патронов), потом: у HEMTT Spares включить запчасти, у машин мода -
+// перерисовать круг своим материалом.
 void hookAmmoOn(void* f) {
     g_origAmmoOn(f);
     syncSpares(f, true);
@@ -432,6 +473,8 @@ void hookAmmoOn(void* f) {
     if (k == Kind::Repair) trace("repair ON  (with supply mode)", f);
     convertCircle(f, k);
 }
+// Перехват AmmoRechargerFacet::deactivate (слот 13) - режим F4 выключен. Забываем круг и состояние
+// ремонта этого компонента, вызываем оригинал (убирает круг), у HEMTT Spares выключаем запчасти.
 void hookAmmoOff(void* f) {
     if (void* c = circleOf(f)) g_ownCircles.erase(c);
     g_repairTimers.erase(f);
@@ -458,6 +501,8 @@ void hookRepairOff(void* r) {
 // Свой update ремонта недоделан (ищет цели и выбрасывает результат) - не выполняем его вовсе.
 void hookRepairUpdate(void*, float) {}
 
+// Перехваты RefuellerFacet::activate / deactivate (слоты 14 / 13): оригинал + то же для запчастей
+// машины (на случай машины с refuel и support - режим F4 тогда берёт заправщик).
 void hookFuelOn(void* f) {
     g_origFuelOn(f);
     syncSpares(f, true);
@@ -475,6 +520,10 @@ void* tickSpares(void* recharger, float dt) {
     return spares;
 }
 
+// Перехват AmmoRechargerFacet::update (слот 10), движок вызывает его каждый кадр. Оригинал раздаёт
+// патроны (у машин мода canRecharge отвечает «нет») и обновляет список машин в зоне. Пока режим F4
+// включён: у HEMTT Spares тикаем запчасти, у HEMTT Repair - ремонт; круг, созданный без нас (например,
+// при загрузке сохранения), тоже перекрашиваем.
 void hookAmmoUpdate(void* f, float dt) {
     g_origAmmoUpdate(f, dt);
     if (!isOn(f, kRechargerOffFlag)) return;
@@ -486,17 +535,22 @@ void hookAmmoUpdate(void* f, float dt) {
         convertCircle(f, Kind::Repair);
     }
 }
+// Перехват RefuellerFacet::update (слот 10): оригинал + тик запчастей той же машины в режиме F4.
 void hookFuelUpdate(void* f, float dt) {
     g_origFuelUpdate(f, dt);
     tickSpares(f, dt);
 }
 
+// Перехват AmmoRechargerFacet::canRecharge (слот 17): можно ли дать патроны target. Машины мода патроны
+// не раздают никогда - ни по зоне, ни по приказу; остальным - решает оригинал.
 bool hookAmmoCanRecharge(void* ammo, void* target) {
     if (kindOf(ammo) != Kind::Ammo) return false;
     return g_origAmmoCanRecharge(ammo, target);
 }
 
-// Диагностика: первые секунды работы зоны - радиус и число целей в ней (список +0x28..+0x30).
+// Перехват SparesRechargerFacet::update (слот 10). Сам движок его не вызывает - его вызываем мы
+// (tickSpares) и приказ «пополнить» по клику. Оригинал ищет машины в радиусе и пополняет им запчасти.
+// Диагностика: первые 20 секунд работы зоны - радиус и число целей в ней (список +0x28..+0x30).
 void hookSparesUpdate(void* spares, float dt) {
     g_origSparesUpdate(spares, dt);
     static float acc = 0;
@@ -512,6 +566,9 @@ void hookSparesUpdate(void* spares, float dt) {
           static_cast<int>((e - b) / 8));
 }
 
+// Перехват SparesRechargerFacet::deactivate (слот 13). Приказ «пополнить» по клику по окончании
+// выключает запчасти - если в это время у машины включён режим F4 (боеприпасы или заправщик), выключение
+// пропускаем, иначе раздача по зоне оборвалась бы.
 void hookSparesOff(void* spares) {
     void* owner = ownerOf(spares);
     for (uintptr_t vt : {g_a.ammoVt, g_a.fuelVt}) {
@@ -526,10 +583,13 @@ void hookSparesOff(void* spares) {
 
 // ---------------------------------------------------------------- поиск и установка
 
+// Короткое имя для Image::ripTarget: адрес, на который ссылается rip-относительный операнд инструкции.
 uintptr_t ripTarget(uintptr_t insn, size_t dispAt, size_t len) {
     return Image::ripTarget(insn, dispAt, len);
 }
 
+// Найти байтовый шаблон sig в коде; он должен встретиться ровно один раз. Иначе пишет в лог, сколько
+// совпадений (what - имя для лога), и возвращает 0.
 uintptr_t findOne(const Image& img, const char* what, const char* sig) {
     auto hits = img.find(sig);
     if (hits.size() == 1) return hits[0];
@@ -537,6 +597,9 @@ uintptr_t findOne(const Image& img, const char* what, const char* sig) {
     return 0;
 }
 
+// Найти в logic.dll всё, что нужно плагину, и заполнить g_a: vtable компонентов по RTTI, места кода по
+// шаблонам, адреса вызываемых функций движка - из инструкций call внутри уже найденного кода.
+// Всё найденное пишет в лог. Возвращает true, только если нашлось всё до единого.
 bool resolve(const Image& img) {
     g_a.ammoVt = img.vtableOf("AmmoRechargerFacet@Leonardo");
     g_a.fuelVt = img.vtableOf("RefuellerFacet@Leonardo");
@@ -594,6 +657,9 @@ bool resolve(const Image& img) {
            g_a.diplomacy;
 }
 
+// Вызывается DllWatcher, когда logic.dll загружена (base - её адрес), до выполнения её кода.
+// Находит адреса (resolve) и ставит все правки одним набором PatchSet: всё или ничего. Не нашлось или не
+// совпало хоть что-то - не меняет ничего, пишет причину в лог. Успех - строка «SparesSupply active».
 void onLogicLoaded(uintptr_t base) {
     Image img(base);
     g_log("logic.dll at %p (TimeDateStamp %08X, SizeOfImage %08X)", reinterpret_cast<void*>(base),
@@ -662,6 +728,8 @@ dfd::DllWatcher g_watcher;
 
 }  // namespace
 
+// Точка входа DLL. Её загружает winhttp.dll (загрузчик) из своего DllMain, т.е. под loader lock Windows:
+// здесь только открываем лог и подписываемся на загрузку logic.dll - вся работа в onLogicLoaded.
 BOOL WINAPI DllMain(HINSTANCE self, DWORD reason, LPVOID) {
     if (reason != DLL_PROCESS_ATTACH) return TRUE;
     DisableThreadLibraryCalls(self);

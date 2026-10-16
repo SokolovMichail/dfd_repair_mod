@@ -20,6 +20,7 @@ secs = [struct.unpack_from('<IIII', d, opt + sopt + 40 * i + 8) for i in range(n
 
 
 def r2o(r):
+    """RVA -> смещение в файле winhttp.dll."""
     for vs, va, rs, ra in secs:
         if va <= r < va + max(vs, rs):
             return ra + r - va

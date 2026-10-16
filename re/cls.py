@@ -1,9 +1,13 @@
+# RTTI и строки DLL игры: vtables_of(класс), cstr(rva), r2o/o2r - перевод RVA <-> смещение в файле.
 import sys,re,struct,pickle
 sys.path.insert(0,sys.argv[0].rsplit('/',1)[0] if '/' in sys.argv[0] else '.')
 from riprefs import d,secs,md
 base=0x180000000
+# RVA -> смещение в файле DLL (None, если вне секций)
 def r2o(r): return next((s[4]+r-s[2] for s in secs if s[2]<=r<s[2]+max(s[1],s[3])),None)
+# смещение в файле -> RVA
 def o2r(o): return next((s[2]+o-s[4] for s in secs if s[4]<=o<s[4]+s[3]),None)
+# все vtable класса Leonardo::<cls> по RTTI: [(rva vtable, смещение подобъекта, [rva функций по слотам])]
 def vtables_of(cls):
     off=d.find(('.?AV'+cls+'@Leonardo@@\0').encode())
     td=o2r(off)-0x10; out=[]
@@ -20,6 +24,7 @@ def vtables_of(cls):
                     ents.append(q); k+=1
                 out.append((vt,of,ents))
     return out
+# ASCII-строка по RVA (для подписей в листингах) или None
 def cstr(t):
     o=r2o(t)
     if o is None: return None

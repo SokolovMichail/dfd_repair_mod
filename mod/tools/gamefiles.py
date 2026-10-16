@@ -43,6 +43,7 @@ def env(name):
 
 
 def password():
+    """Пароль архивов игры (bytes) из DFD_PAK_PASSWORD; без него - выход с подсказкой."""
     pw = env('DFD_PAK_PASSWORD')
     if not pw:
         raise SystemExit('нет пароля архивов игры: задайте DFD_PAK_PASSWORD (переменная окружения или .env в корне проекта)')
@@ -50,6 +51,7 @@ def password():
 
 
 def _order(path):
+    """Ключ сортировки архивов слоя в порядке монтирования: basis.pak, затем patch_NNN по номеру, прочие - в конце."""
     name = os.path.basename(path).lower()
     if name.startswith('basis'):
         return -1

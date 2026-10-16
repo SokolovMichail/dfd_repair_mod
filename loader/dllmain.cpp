@@ -24,12 +24,14 @@ void* g_orig[kExportCount] = {};
 
 static dfd::Log g_log;
 
-// На случай, если в системной winhttp.dll какой-то функции нет: вернуть 0/FALSE.
+// Заглушка для функции, которой нет в системной winhttp.dll (другая версия Windows): если игра её
+// вызовет, получит 0/FALSE и код ошибки ERROR_PROC_NOT_FOUND, а не падение по нулевому адресу.
 static DWORD_PTR WINAPI missingExport() {
     SetLastError(ERROR_PROC_NOT_FOUND);
     return 0;
 }
 
+// Папка, из которой загружен модуль m, с завершающим '\' (для нас - bin\ игры).
 static std::wstring dirOf(HMODULE m) {
     wchar_t path[MAX_PATH];
     DWORD n = GetModuleFileNameW(m, path, MAX_PATH);
@@ -37,6 +39,9 @@ static std::wstring dirOf(HMODULE m) {
     return std::wstring(path, n);
 }
 
+// Загрузить настоящую winhttp.dll из System32 и заполнить g_orig адресами всех её функций из
+// kExportNames - по ним прыгают переходники. Отсутствующие функции заменяются заглушкой missingExport.
+// false - системную DLL загрузить не удалось (тогда и наша DLL не загрузится: DllMain вернёт FALSE).
 static bool loadSystemWinhttp() {
     wchar_t sys[MAX_PATH];
     UINT n = GetSystemDirectoryW(sys, MAX_PATH);
@@ -54,6 +59,8 @@ static bool loadSystemWinhttp() {
     return true;
 }
 
+// Загрузить все *.dll из папки dir (bin\plugins\) в алфавитном порядке и записать в лог, что
+// загрузилось, а что нет. Подпапки пропускаются. Ошибка одного плагина не мешает остальным.
 static void loadPlugins(const std::wstring& dir) {
     std::vector<std::wstring> files;
     WIN32_FIND_DATAW fd;
@@ -78,6 +85,9 @@ static void loadPlugins(const std::wstring& dir) {
     }
 }
 
+// Точка входа: при загрузке в процесс подключает системную winhttp.dll и, если это основной процесс игры,
+// открывает лог и загружает плагины. Возвращает FALSE (DLL не загрузится), только если не нашлась
+// системная winhttp.dll - без неё игра всё равно не смогла бы работать с сетью.
 BOOL WINAPI DllMain(HINSTANCE self, DWORD reason, LPVOID) {
     if (reason != DLL_PROCESS_ATTACH) return TRUE;
     DisableThreadLibraryCalls(self);

@@ -37,11 +37,14 @@ def cells(row):
 
 
 def cell_text(cell):
+    """Текст ячейки (содержимое <Data>), пустая строка - если данных нет."""
     d = DATA_RE.search(cell)
     return d.group(2) if d else ""
 
 
 def parse_edits(args):
+    """Разобрать правки командной строки в (колонка, значение, режим): False - заменить, True - дописать,
+    "list" - добавить элемент в список через запятую."""
     edits = []
     for a in args:
         if ",+=" in a:
@@ -100,6 +103,8 @@ def clone_row(text, sysname, new_sysname):
 
 
 def main(src, dst, sysname, edit_args):
+    """Поправить одну строку таблицы: при --clone сначала вставить её копию, затем изменить ячейки и
+    записать файл (остальной текст - байт-в-байт)."""
     text = open(src, encoding="utf-8", newline="").read()
     if edit_args[:1] == ["--clone"]:
         new_sysname = edit_args[1]

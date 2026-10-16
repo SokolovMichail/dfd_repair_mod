@@ -79,7 +79,7 @@ dist/                  результат «собрать релиз» (в git 
 | `winhttp`, `SparesSupply` | DLL (профиль CLion, обычно Debug). |
 | `mod` | Собирает данные мода в `<build>/stage/mods/HEMTT_Spares`. Файлы игры каждый раз берутся заново — после обновления игры достаточно пересобрать. |
 | `deploy` | Ставит в игру: `bin\winhttp.dll`, `bin\plugins\SparesSupply.dll`, `mods\HEMTT_Spares`. Игра должна быть закрыта; мод нужно один раз включить в меню MODS. |
-| `release` | **Собрать релиз**: отдельная Release-сборка DLL (оптимизация, без отладочной информации) + данные мода + `dist/HEMTT_Spares_v<версия>.zip` и `dist/HEMTT_Spares_v<версия>_cover.png`. |
+| `release` | **Собрать релиз**: отдельная Release-сборка DLL (оптимизация, без отладочной информации) + данные мода + `dist/HEMTT_Spares_v<версия>.zip`, `dist/HEMTT_Spares_v<версия>_cover.png` (1920×1080) и `_banner.png` (1300×372). |
 
 В CLion: выбрать конфигурацию **Build release** (или **Deploy to game**) и нажать Run — либо Build → Build Target.
 Из консоли:

@@ -37,11 +37,13 @@ def shape_mask():
 
 
 def grow(m, px):
+    """Расширить маску на px пикселей итогового размера (MaxFilter в суперсэмплинге) - для контура и тени."""
     k = 2 * int(px * S) + 1
     return m.filter(ImageFilter.MaxFilter(k)) if k > 1 else m
 
 
 def shrink(m, px):
+    """Сузить маску на px пикселей итогового размера - для внутренней заливки."""
     k = 2 * int(px * S) + 1
     return m.filter(ImageFilter.MinFilter(k)) if k > 1 else m
 
@@ -80,12 +82,15 @@ def render(M=None):
 
 
 def dxt5_payload(img):
+    """Сжать картинку в DXT5 и вернуть только данные - без 128-байтного заголовка DDS."""
     buf = io.BytesIO()
     img.save(buf, 'DDS', pixel_format='DXT5')
     return buf.getvalue()[128:]
 
 
 def save_dds(img, path):
+    """Записать DDS DXT5 с полной цепочкой мипов, как у игровых circle_*.dds: заголовок от Pillow с
+    исправленными флагами и числом мипов, затем все уровни подряд."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     levels, cur = [], img
     while True:

@@ -15,6 +15,7 @@ import sys
 
 
 def section(text, faction):
+    """Границы содержимого секции [faction] в тексте: (начало, конец). Нет секции - выход."""
     sec = re.search(r"^\[" + re.escape(faction) + r"\]\s*$(.*?)(?=^\[|\Z)", text, re.S | re.M)
     if not sec:
         sys.exit(f"Нет секции [{faction}]")
@@ -22,6 +23,7 @@ def section(text, faction):
 
 
 def add_car(text, faction, anchor, new):
+    """Добавить { sysname = new } в cars фракции сразу после строки anchor (тот же отступ и перевод строки)."""
     start, end = section(text, faction)
     if f'"{new}"' in text[start:end]:
         sys.exit(f"{new} уже есть в [{faction}]")
@@ -36,6 +38,7 @@ def add_car(text, faction, anchor, new):
 
 
 def set_limit(text, faction, value):
+    """Задать points_limit фракции."""
     start, end = section(text, faction)
     hits = list(re.compile(r"^(points_limit = )(\d+)", re.M).finditer(text, start, end))
     if len(hits) != 1:
@@ -46,6 +49,7 @@ def set_limit(text, faction, value):
 
 
 def main(src, dst, edits):
+    """Применить правки из командной строки по очереди и записать результат."""
     text = open(src, encoding="utf-8", newline="").read()
     for e in edits:
         kind, *args = e.split(":")

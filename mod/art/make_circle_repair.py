@@ -25,6 +25,7 @@ def hammer_mask():
 
 
 def shape_mask_repair():
+    """Маска значка: гаечный ключ и молоток (по 86% размера), повёрнутые на ±45° и наложенные крест-накрест."""
     # ключ (головкой вверх) и молоток, повёрнутые навстречу друг другу; немного меньше, чтобы углы влезли
     wrench = shape_mask().resize((int(W * 0.86),) * 2, Image.LANCZOS)
     hammer = hammer_mask().resize((int(W * 0.86),) * 2, Image.LANCZOS)

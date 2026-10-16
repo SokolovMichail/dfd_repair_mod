@@ -31,6 +31,8 @@ public:
         wcsncat(path, L".log", MAX_PATH - wcslen(path) - 1);
         f_ = _wfopen(path, L"w");
     }
+    // Записать строку в стиле printf с отметкой времени ЧЧ:ММ:СС. Сразу сбрасывается на диск, чтобы лог
+    // уцелел при падении игры. Если файл не открылся - молча ничего не делает.
     void operator()(const char* fmt, ...) {
         if (!f_) return;
         time_t t = time(nullptr);
@@ -54,11 +56,13 @@ private:
 // Загруженный PE-образ: секции и поиск по ним.
 class Image {
 public:
+    // base - адрес загруженного модуля (то же, что HMODULE): по нему читаются заголовки PE.
     explicit Image(uintptr_t base) : base_(base) {
         auto dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
         nt_ = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
     }
     uintptr_t base() const { return base_; }
+    // RVA - смещение адреса от начала модуля; в таком виде адреса пишутся в лог и в engine_notes.md.
     uint32_t rva(uintptr_t a) const { return static_cast<uint32_t>(a - base_); }
     uint32_t timeDateStamp() const { return nt_->FileHeader.TimeDateStamp; }
     uint32_t sizeOfImage() const { return nt_->OptionalHeader.SizeOfImage; }
@@ -66,6 +70,8 @@ public:
     struct Range {
         uintptr_t begin = 0, end = 0;
     };
+    // Границы секции (".text" - код, ".rdata" - константы и vtable, ".data" - данные) в памяти.
+    // Пустой диапазон, если такой секции нет.
     Range section(const char* name) const {
         auto s = IMAGE_FIRST_SECTION(nt_);
         for (int i = 0; i < nt_->FileHeader.NumberOfSections; ++i, ++s)
@@ -84,6 +90,8 @@ public:
             if (matchesAt(p, pat)) hits.push_back(p);
         return hits;
     }
+    // Совпадают ли байты по адресу at с шаблоном (тот же формат, что у find). Так проверяется начало
+    // функции перед подменой и инструкции по известному смещению.
     static bool matches(uintptr_t at, const char* pattern) { return matchesAt(at, parse(pattern)); }
 
     // Строка (с завершающим нулём) в секции: адрес первого вхождения или 0.
@@ -102,6 +110,10 @@ public:
 
     // Первичная vtable класса по RTTI: ".?AV<cls>@@" -> TypeDescriptor -> CompleteObjectLocator
     // (offset 0) -> слот перед vtable. cls - полное имя с пространством имён, напр. "AmmoRechargerFacet@Leonardo".
+    // Так адрес vtable находится в любой сборке игры без шаблонов. 0 - класс не найден.
+    // Шаги: 1) строка-имя типа в .data (TypeDescriptor начинается за 0x10 байт до неё);
+    // 2) в .rdata - CompleteObjectLocator с этим TypeDescriptor и offset 0 (первичная vtable);
+    // 3) в .rdata - указатель на этот COL: vtable начинается сразу за ним.
     uintptr_t vtableOf(const char* cls) const {
         std::string name = std::string(".?AV") + cls + "@@";
         Range data = section(".data"), rdata = section(".rdata");
@@ -125,6 +137,7 @@ public:
     }
 
 private:
+    // Разобрать текст шаблона "48 8B ?? 05" в список байтов; -1 - любой байт (?? или ?).
     static std::vector<int> parse(const char* s) {
         std::vector<int> out;
         while (*s) {
@@ -140,6 +153,7 @@ private:
         }
         return out;
     }
+    // Совпадают ли байты по адресу p с разобранным шаблоном (позиции -1 не сравниваются).
     static bool matchesAt(uintptr_t p, const std::vector<int>& pat) {
         auto b = reinterpret_cast<const uint8_t*>(p);
         for (size_t i = 0; i < pat.size(); ++i)
@@ -186,6 +200,9 @@ public:
                           reinterpret_cast<void*>(cur), prologue});
     }
 
+    // Применить набор. Сначала проверяет ВСЕ правки: адрес найден, исходные байты на месте, у подменяемых
+    // функций ожидаемое начало. Хоть одно несовпадение - не пишет ничего и возвращает false (причина в
+    // логе). Иначе пишет все правки, заполняет *saved исходными указателями и возвращает true.
     bool apply(Log& log) {
         for (auto& it : items_) {
             if (!it.at) {
@@ -234,6 +251,8 @@ class DllWatcher {
 public:
     using Callback = void (*)(uintptr_t base);
 
+    // Начать ожидание DLL с именем dllName (без пути, регистр не важен). Уже загружена - cb вызывается
+    // сразу, отсюда. false - не удалось подписаться на уведомления загрузчика Windows.
     bool watch(const wchar_t* dllName, Callback cb) {
         name_ = dllName;
         cb_ = cb;
@@ -259,6 +278,8 @@ private:
         ULONG SizeOfImage;
     };
 
+    // Уведомление загрузчика Windows о загрузке/выгрузке любой DLL. Если загружена (reason 1) нужная -
+    // вызвать колбэк. ctx - наш объект DllWatcher.
     static void NTAPI notify(ULONG reason, const NotificationData* data, void* ctx) {
         auto self = static_cast<DllWatcher*>(ctx);
         if (reason != 1 /* LOADED */ || self->fired_) return;
@@ -268,6 +289,7 @@ private:
             self->fire(reinterpret_cast<uintptr_t>(data->DllBase));
     }
 
+    // Вызвать колбэк ровно один раз за время жизни объекта.
     void fire(uintptr_t base) {
         if (fired_) return;
         fired_ = true;
