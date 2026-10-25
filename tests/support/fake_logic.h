@@ -10,12 +10,15 @@
 // the game code, not from the real game. The tests then spoil one detail at a time and check that the
 // plugin notices.
 //
-// Include AFTER spares_supply.cpp (it needs the plugin's constants).
+// It uses the plugin's constants (common.h).
 #pragma once
 
+#include "../../plugins/spares_supply/common.h"
 #include "fake_pe.h"
 
 namespace fake {
+
+using namespace spares_supply;
 
 struct FakeLogic {
     Pe pe;

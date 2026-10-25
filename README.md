@@ -28,7 +28,8 @@
   обе — патроны 500, лёгкая техника), магазин, армия скирмиша, локализация (en), значки, материалы и текстуры
   кругов, иконка мода;
 - **плагин** — без него движок так не умеет (подробно — в начале
-  [`plugins/spares_supply/spares_supply.cpp`](plugins/spares_supply/spares_supply.cpp) и в
+  [`common.h`](plugins/spares_supply/common.h), [`spares.h`](plugins/spares_supply/spares.h),
+  [`repair.h`](plugins/spares_supply/repair.h) и в
   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)):
   разрешает `ammunition_recharge` рядом с `support` / `repair` (кнопка F4), в режиме F4 тикает компонент
   запчастей (Spares) или сам чинит модули и броню машинам в зоне (Repair — движковый ремонт недоделан),
@@ -46,7 +47,8 @@ CMakeLists.txt         цели сборки (см. ниже), версия мо
 .run/                  готовые конфигурации запуска CLion: Build release / Deploy to game / Build mod data
 common/patch.h         общее для плагинов: лог, поиск по шаблонам и RTTI, набор правок, ожидание загрузки DLL
 loader/                winhttp.dll: прокси системной winhttp.dll + загрузчик bin\plugins\*.dll
-plugins/spares_supply/ SparesSupply.dll
+plugins/spares_supply/ SparesSupply.dll: common.* (общее, установка правок), spares.* (HEMTT Spares),
+                       repair.* (HEMTT Repair)
 tools/                 gen_winhttp_proxy.py - генерация переходников winhttp (нужен редко)
 mod/
   build_mod.py         сборка папки мода из актуальных файлов игры (что и откуда - в начале файла)

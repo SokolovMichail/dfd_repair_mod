@@ -106,7 +106,12 @@
 скриптом [`re/mksig.py`](../re/mksig.py)). А проверка начала подменяемых функций заодно подтверждает, что
 смещения полей, которые читает плагин, те же самые.
 
-## 5. Плагин `SparesSupply.dll` — [`plugins/spares_supply/spares_supply.cpp`](../plugins/spares_supply/spares_supply.cpp)
+## 5. Плагин `SparesSupply.dll` — [`plugins/spares_supply/`](../plugins/spares_supply/)
+
+Три пары файлов, собираются в одну DLL: [`common.h`/`.cpp`](../plugins/spares_supply/common.h) — модель объектов
+движка, режим F4 на компоненте боеприпасов, круг зоны, поиск адресов и установка правок (5.4), `DllMain`;
+[`spares.h`/`.cpp`](../plugins/spares_supply/spares.h) — HEMTT Spares; [`repair.h`/`.cpp`](../plugins/spares_supply/repair.h) —
+HEMTT Repair (5.6).
 
 ### 5.1 Модель объектов движка, которой пользуется плагин
 

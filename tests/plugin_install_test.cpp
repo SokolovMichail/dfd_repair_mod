@@ -12,11 +12,14 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
-#include "../plugins/spares_supply/spares_supply.cpp"
+#include "../plugins/spares_supply/common.h"
+#include "../plugins/spares_supply/repair.h"
+#include "../plugins/spares_supply/spares.h"
 #include "support/fake_logic.h"
 #include "support/log_file.h"
 
 using fake::FakeLogic;
+using namespace spares_supply;
 
 namespace {
 
