@@ -1,13 +1,13 @@
-// Тесты установки плагина: поиск адресов в logic.dll и установка правок.
+// Tests of the plugin installation: finding addresses in logic.dll and applying the patches.
 //
-// Когда игра загружает logic.dll, плагин (onLogicLoaded):
-//   1) находит в ней всё нужное (resolve) - классы по имени, места кода по шаблонам байтов, адреса
-//      функций игры по инструкциям call внутри найденного кода;
-//   2) ставит все правки одним набором «всё или ничего»: 4 замены «mov r15b,1» на nop (чтобы у машин мода
-//      появилась кнопка F4), радиус зоны запчастей, 12 подмен методов в vtable.
-// Главное свойство: если игра обновилась и хоть что-то не совпало, плагин не меняет НИЧЕГО (игра работает
-// как без него) и пишет в лог, что именно не нашлось. Здесь это проверяется на поддельной logic.dll
-// (support/fake_logic.h): сначала целой, потом испорченной по одной детали.
+// When the game loads logic.dll, the plugin (onLogicLoaded):
+//   1) finds everything it needs in it (resolve) - classes by name, code locations by byte patterns, addresses
+//      of game functions from call instructions inside the code found;
+//   2) applies all patches as one "all or nothing" set: 4 replacements of "mov r15b,1" with nop (so mod
+//      vehicles get the F4 button), the spare parts zone radius, 12 method replacements in vtables.
+// The key property: if the game was updated and anything at all does not match, the plugin changes NOTHING
+// (the game runs as without it) and logs exactly what was not found. This is checked here on a fake
+// logic.dll (support/fake_logic.h): first intact, then spoiled one detail at a time.
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
@@ -29,7 +29,7 @@ std::wstring logFile() {
     return fake::logPath(L"plugin_install_test");
 }
 
-// Плагин в состоянии «только что загружен»: ничего не найдено, исходные функции не запомнены.
+// The plugin in its "just loaded" state: nothing found, no originals saved.
 void resetPlugin() {
     g_a = Addr{};
     g_origAmmoOn = g_origAmmoOff = g_origFuelOn = g_origFuelOff = g_origSparesOn = g_origSparesOff = nullptr;
@@ -39,7 +39,7 @@ void resetPlugin() {
     g_circleWritable = false;
 }
 
-// Свежая поддельная logic.dll и сброшенный плагин; log - всё, что плагин напишет в этом тесте.
+// A fresh fake logic.dll and a reset plugin; log - everything the plugin writes during this test.
 struct Install {
     FakeLogic L;
     fake::LogTail log{logFile()};
@@ -58,28 +58,28 @@ uintptr_t addr(F f) {
     return reinterpret_cast<uintptr_t>(f);
 }
 
-// Плагин отказался ставить правки: образ не изменился ни на байт, в логе - причина reason,
-// строки об успешном запуске нет.
+// The plugin refused to patch: the image did not change by a single byte, the log has the reason `reason`,
+// and there is no line about a successful start.
 void expectRejected(Install& t, const std::string& reason) {
     auto before = t.L.pe.snapshot();
     t.load();
     CHECK(t.L.pe.snapshot() == before);
-    CHECK_MESSAGE(t.log.has(reason), "в логе нет «" << reason << "»:\n" << t.log.text());
+    CHECK_MESSAGE(t.log.has(reason), "the log has no \"" << reason << "\":\n" << t.log.text());
     CHECK_FALSE(t.log.has("SparesSupply active"));
     CHECK_FALSE(g_circleWritable);
 }
 
 }  // namespace
 
-// ================================================================ всё совпало
+// ================================================================ everything matches
 
-TEST_CASE_FIXTURE(Install, "Целая logic.dll: все правки поставлены, плагин активен") {
+TEST_CASE_FIXTURE(Install, "Intact logic.dll: all patches applied, the plugin is active") {
     auto before = L.pe.snapshot();
 
     load();
 
     REQUIRE(log.has("SparesSupply active"));
-    // Найденные адреса.
+    // The addresses found.
     CHECK(g_a.ammoVt == L.ammoVt);
     CHECK(g_a.fuelVt == L.fuelVt);
     CHECK(g_a.sparesVt == L.sparesVt);
@@ -92,18 +92,18 @@ TEST_CASE_FIXTURE(Install, "Целая logic.dll: все правки поста
     CHECK(g_a.incHealth == L.incHealth);
     CHECK(g_a.diplomacy == L.diplomacy);
 
-    // 1) «mov r15b,1» -> nop в 4 местах (support и repair, машины и танки). Порядок - по адресу:
-    //    первым идёт сборщик машин, вторым - танков.
+    // 1) "mov r15b,1" -> nop in 4 places (support and repair, cars and tanks). The order is by address:
+    //    the car builder comes first, the tank builder second.
     for (uintptr_t site : {L.supportSite[0], L.supportSite[1], L.repairSite[0], L.repairSite[1]})
         CHECK(Image::matches(site, "90 90 90 8B C3 FF C3"));
-    // Тот же флаг у другого компонента (refuel) не тронут.
+    // The same flag for another component (refuel) is untouched.
     CHECK(Image::matches(L.refuelSite, "41 B7 01"));
 
-    // 2) Радиус: инструкция та же (movss xmm2), но читает теперь глобальный supplyRadius, а не константу 20.
+    // 2) Radius: the same instruction (movss xmm2), but it now reads the global supplyRadius, not the constant 20.
     CHECK(Image::matches(L.radiusLoad, "F3 0F 10 15"));
     CHECK(Image::ripTarget(L.radiusLoad, 4, 8) == L.supplyRadius);
 
-    // 3) 12 методов в vtable заменены перехватами; исходные функции запомнены.
+    // 3) 12 vtable methods replaced with hooks; the originals saved.
     CHECK(slot(L.ammoVt, kSlotActivate) == addr(&hookAmmoOn));
     CHECK(slot(L.ammoVt, kSlotDeactivate) == addr(&hookAmmoOff));
     CHECK(slot(L.ammoVt, kSlotUpdate) == addr(&hookAmmoUpdate));
@@ -128,16 +128,16 @@ TEST_CASE_FIXTURE(Install, "Целая logic.dll: все правки поста
     CHECK(addr(g_origRepairOn) == L.repairOn);
     CHECK(addr(g_origRepairOff) == L.repairOff);
     CHECK(addr(g_origRepairUpdate) == L.repairUpdate);
-    // Включение запчастей не перехватывается: слот прежний, исходная функция запомнена.
+    // Switching spare parts on is not hooked: the slot is unchanged, the original is saved.
     CHECK(slot(L.sparesVt, kSlotActivate) == L.sparesOn);
     CHECK(addr(g_origSparesOn) == L.sparesOn);
 
-    // 4) Инструкция материала круга не изменена (её меняет перехват на время рисования), но
-    //    сделана записываемой.
+    // 4) The circle material instruction is unchanged (the hook changes it while drawing), but it was made
+    //    writable.
     CHECK(Image::matches(L.circleLea, "4C 8D 80 20 01 00 00"));
     CHECK(g_circleWritable);
 
-    // Кроме перечисленного, в образе не изменилось ничего.
+    // Apart from the above, nothing in the image changed.
     std::vector<std::pair<uintptr_t, size_t>> allowed = {
         {L.supportSite[0], 3}, {L.supportSite[1], 3}, {L.repairSite[0], 3}, {L.repairSite[1], 3},
         {L.radiusLoad + 4, 4}};
@@ -159,7 +159,7 @@ TEST_CASE_FIXTURE(Install, "Целая logic.dll: все правки поста
     CHECK(unexpected == 0);
 }
 
-TEST_CASE_FIXTURE(Install, "Целая logic.dll: лог перечисляет найденное и каждую правку") {
+TEST_CASE_FIXTURE(Install, "Intact logic.dll: the log lists what was found and every patch") {
     load();
     char buf[200];
     snprintf(buf, sizeof buf, "logic.dll at %p (TimeDateStamp %08X, SizeOfImage %08X)",
@@ -172,7 +172,7 @@ TEST_CASE_FIXTURE(Install, "Целая logic.dll: лог перечисляет 
     snprintf(buf, sizeof buf, "functions: incHealth %08X diplomacy %08X material table %08X",
              L.pe.rva(L.incHealth), L.pe.rva(L.diplomacy), L.pe.rva(L.materialTable));
     CHECK(log.has(buf));
-    // Правок 18: 4 nop, радиус, 12 методов и проверка инструкции круга.
+    // 18 patches: 4 nops, the radius, 12 methods and the circle instruction check.
     CHECK(log.count("patched: ") == 18);
     CHECK(log.has(rvaText("patched: cars: support no longer blocks ammunition_recharge (RVA %08X)",
                           L.supportSite[0])));
@@ -183,19 +183,19 @@ TEST_CASE_FIXTURE(Install, "Целая logic.dll: лог перечисляет 
     CHECK(log.has(rvaText("patched: RepairerFacet::update (disabled) (RVA %08X)", L.repairVt + 8 * kSlotUpdate)));
 }
 
-// ================================================================ что-то не совпало - не меняем ничего
+// ================================================================ something does not match - change nothing
 
-TEST_CASE("Нет одного из пяти классов - плагин не ставит ничего") {
+TEST_CASE("One of the five classes is missing - the plugin applies nothing") {
     for (int which = 0; which < 5; ++which) {
         CAPTURE(which);
         Install t;
         uintptr_t names[5] = {t.L.ammoName, t.L.fuelName, t.L.sparesName, t.L.repairName, t.L.modulesName};
-        fake::Pe::write(names[which], {'X'});  // имя класса больше не совпадает
+        fake::Pe::write(names[which], {'X'});  // the class name no longer matches
         expectRejected(t, "this logic.dll build is not supported - nothing patched");
     }
 }
 
-TEST_CASE("Шаблон, который должен найтись ровно один раз, не нашёлся или нашёлся дважды") {
+TEST_CASE("A pattern that must be found exactly once was not found or was found twice") {
     struct Sig {
         const char* name;
         uintptr_t FakeLogic::*at;
@@ -210,12 +210,12 @@ TEST_CASE("Шаблон, который должен найтись ровно �
     };
     for (const Sig& s : sigs) {
         CAPTURE(s.name);
-        {  // нет ни одного
+        {  // none at all
             Install t;
             FakeLogic::spoil(t.L.*s.at);
             expectRejected(t, std::string("signature '") + s.name + "': 0 matches (need 1)");
         }
-        {  // два одинаковых места - непонятно, какое править
+        {  // two identical places - unclear which one to patch
             Install t;
             t.L.duplicate(s.pattern);
             expectRejected(t, std::string("signature '") + s.name + "': 2 matches (need 1)");
@@ -223,7 +223,7 @@ TEST_CASE("Шаблон, который должен найтись ровно �
     }
 }
 
-TEST_CASE("«support блокирует ammo»: нужно ровно 2 места (машины и танки)") {
+TEST_CASE("\"support blocks ammo\": exactly 2 places are needed (cars and tanks)") {
     {
         Install t;
         FakeLogic::spoil(t.L.supportSite[1]);
@@ -236,18 +236,18 @@ TEST_CASE("«support блокирует ammo»: нужно ровно 2 мест
     }
 }
 
-TEST_CASE("«repair блокирует ammo»: нужно ровно 2 места со ссылкой на имя RepairerFacet") {
+TEST_CASE("\"repair blocks ammo\": exactly 2 places referring to the RepairerFacet name are needed") {
     {
         Install t;
         FakeLogic::spoil(t.L.repairSite[0]);
         expectRejected(t, "signature 'repair blocks ammo': 1 matches (need 2)");
     }
-    {  // строки с именем компонента нет - не найдено ни одного места
+    {  // no string with the component name - no place found at all
         Install t;
         fake::Pe::write(t.L.repairString, {'X'});
         expectRejected(t, "signature 'repair blocks ammo': 0 matches (need 2)");
     }
-    {  // третье место с тем же именем
+    {  // a third place with the same name
         Install t;
         uintptr_t extra = t.L.duplicate(kSigAbilityFlag);
         fake::Pe::aim(extra + 7, 3, 7, t.L.repairString);
@@ -257,8 +257,8 @@ TEST_CASE("«repair блокирует ammo»: нужно ровно 2 мест�
 
 namespace {
 
-// Убрать инструкцию материала с её места (+0x77) и положить единственную копию (с call таблицы
-// материалов перед ней) на distance байт дальше начала функции круга. Возвращает адрес копии.
+// Remove the material instruction from its place (+0x77) and put its only copy (with the material table call
+// before it) `distance` bytes past the start of the circle function. Returns the copy's address.
 uintptr_t moveCircleLea(FakeLogic& L, size_t distance) {
     FakeLogic::spoil(L.circleLea);
     uintptr_t at = L.showCircle + distance;
@@ -269,14 +269,15 @@ uintptr_t moveCircleLea(FakeLogic& L, size_t distance) {
 
 }  // namespace
 
-TEST_CASE_FIXTURE(Install, "Инструкция материала круга дальше 0x100 байт от начала функции круга - отказ") {
-    // «Внутри функции» для плагина - не дальше 0x100 байт от её начала (в GOG-сборке она на +0x77).
-    L.pe.text.cur = L.showCircle + 0x200;  // освободить место за функцией
+TEST_CASE_FIXTURE(Install, "The circle material instruction is more than 0x100 bytes from the circle function start - refused") {
+    // "Inside the function" for the plugin means no further than 0x100 bytes from its start (it is at +0x77 in
+    // the GOG build).
+    L.pe.text.cur = L.showCircle + 0x200;  // free up room after the function
     moveCircleLea(L, 0x180);
     expectRejected(*this, "circle material lea is not inside the circle function");
 }
 
-TEST_CASE_FIXTURE(Install, "Инструкция материала круга сдвинулась, но в пределах 0x100 байт - принимается") {
+TEST_CASE_FIXTURE(Install, "The circle material instruction moved, but within 0x100 bytes - accepted") {
     L.pe.text.cur = L.showCircle + 0x200;
     uintptr_t at = moveCircleLea(L, 0xF0);
     load();
@@ -284,31 +285,31 @@ TEST_CASE_FIXTURE(Install, "Инструкция материала круга �
     CHECK(g_a.circleLea == at);
 }
 
-TEST_CASE_FIXTURE(Install, "Перед инструкцией материала нет вызова таблицы материалов") {
+TEST_CASE_FIXTURE(Install, "No material table call before the material instruction") {
     fake::Pe::write(L.circleLea - kMaterialTableCallBack, {0x90});
     expectRejected(*this, "material table call not found");
 }
 
-TEST_CASE_FIXTURE(Install, "incHealth начинается не так, как ожидалось") {
+TEST_CASE_FIXTURE(Install, "incHealth does not start as expected") {
     FakeLogic::spoil(L.incHealth);
     expectRejected(*this, "incHealth: unexpected prologue");
 }
 
-TEST_CASE("В canRecharge не нашёлся вызов дипломатии") {
-    {  // изменилось начало canRecharge
+TEST_CASE("The diplomacy call was not found in canRecharge") {
+    {  // the start of canRecharge changed
         Install t;
         FakeLogic::spoil(t.L.ammoCan);
         expectRejected(t, "diplomacy call in canRecharge not found");
     }
-    {  // на +0x3a не тот код
+    {  // the wrong code at +0x3a
         Install t;
         FakeLogic::spoil(t.L.ammoCan + kDiplomacyCallAt);
         expectRejected(t, "diplomacy call in canRecharge not found");
     }
 }
 
-TEST_CASE("Перехватываемый метод начинается не так, как ожидалось") {
-    // Начало функции подтверждает, что это та же функция и поля объекта лежат там же, где думает плагин.
+TEST_CASE("A hooked method does not start as expected") {
+    // The function's start confirms it is the same function and the object's fields are where the plugin thinks.
     struct Method {
         const char* name;
         uintptr_t FakeLogic::*fn;
@@ -325,27 +326,27 @@ TEST_CASE("Перехватываемый метод начинается не �
         {"RepairerFacet::activate", &FakeLogic::repairOn},
         {"RepairerFacet::deactivate", &FakeLogic::repairOff},
         {"RepairerFacet::update (disabled)", &FakeLogic::repairUpdate},
-        // canRecharge проверяется раньше - при поиске вызова дипломатии (тест выше).
+        // canRecharge is checked earlier - when looking for the diplomacy call (test above).
     };
     for (const Method& m : methods) {
         CAPTURE(m.name);
         Install t;
         FakeLogic::spoil(t.L.*m.fn);
         expectRejected(t, std::string("verify FAILED: ") + m.name + " at RVA");
-        CHECK(addr(g_origAmmoOn) == 0);  // исходные функции не запомнены - перехваты не стоят
+        CHECK(addr(g_origAmmoOn) == 0);  // originals not saved - no hooks installed
     }
 }
 
-TEST_CASE_FIXTURE(Install, "Включение запчастей начинается не так, как ожидалось") {
-    // Его плагин не перехватывает, а вызывает сам - поэтому тоже проверяет.
+TEST_CASE_FIXTURE(Install, "Switching spare parts on does not start as expected") {
+    // The plugin does not hook it but calls it itself - so it checks it too.
     FakeLogic::spoil(L.sparesOn);
     expectRejected(*this, "verify FAILED: SparesRechargerFacet::activate - nothing patched");
 }
 
-TEST_CASE_FIXTURE(Install, "Повторный поиск без сброса не проходит") {
-    // ОСОБЕННОСТЬ: resolve рассчитан на один вызов за запуск - найденные места «repair блокирует ammo»
-    // добавляются к уже найденным, и при втором вызове их оказывается 4. В игре logic.dll загружается
-    // один раз, и DllWatcher вызывает установку тоже один раз.
+TEST_CASE_FIXTURE(Install, "A second search without a reset fails") {
+    // QUIRK: resolve is meant to be called once per run - the "repair blocks ammo" places found are appended to
+    // those already found, so the second call ends up with 4. In the game logic.dll is loaded once, and
+    // DllWatcher runs the installation once too.
     Image img(L.pe.base());
     REQUIRE(resolve(img));
     CHECK_FALSE(resolve(img));

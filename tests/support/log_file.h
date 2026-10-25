@@ -1,8 +1,8 @@
-// Чтение лога плагина из тестов.
+// Reading the plugin's log from tests.
 //
-// Плагин пишет лог в файл <папка программы>\<имя>.log (dfd::Log). Тест открывает такой же лог для
-// тестовой программы и смотрит, что в него дописалось: LogTail запоминает размер файла при создании и
-// потом отдаёт только новые строки - так каждый тест видит лишь свои записи.
+// The plugin writes its log to <program folder>\<name>.log (dfd::Log). A test opens the same kind of log for
+// the test program and looks at what was appended: LogTail remembers the file size when it is created and
+// later returns only the new lines - so each test sees only its own entries.
 #pragma once
 
 #include <windows.h>
@@ -12,7 +12,7 @@
 
 namespace fake {
 
-// Путь, по которому dfd::Log::open(GetModuleHandle(nullptr), name) создаёт файл: рядом с тестовой программой.
+// The path where dfd::Log::open(GetModuleHandle(nullptr), name) creates the file: next to the test program.
 inline std::wstring logPath(const wchar_t* name) {
     wchar_t path[MAX_PATH];
     DWORD n = GetModuleFileNameW(nullptr, path, MAX_PATH);
@@ -20,7 +20,7 @@ inline std::wstring logPath(const wchar_t* name) {
     return std::wstring(path, n) + name + L".log";
 }
 
-// Весь текст файла (пустая строка, если файла нет).
+// The whole text of a file (empty string if there is no file).
 inline std::string readFile(const std::wstring& path) {
     std::string out;
     FILE* f = _wfopen(path.c_str(), L"rb");
@@ -31,14 +31,14 @@ inline std::string readFile(const std::wstring& path) {
     return out;
 }
 
-// Сколько раз подстрока what встречается в text.
+// How many times the substring `what` occurs in text.
 inline int countOf(const std::string& text, const std::string& what) {
     int n = 0;
     for (size_t p = text.find(what); p != std::string::npos; p = text.find(what, p + what.size())) ++n;
     return n;
 }
 
-// «Хвост» лога: всё, что записано после создания объекта.
+// The "tail" of a log: everything written after this object was created.
 class LogTail {
 public:
     explicit LogTail(std::wstring path) : path_(std::move(path)), start_(readFile(path_).size()) {}

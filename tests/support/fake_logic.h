@@ -1,14 +1,16 @@
-// Поддельная logic.dll для тестов установки плагина (plugin_install_test.cpp).
+// A fake logic.dll for the plugin install tests (plugin_install_test.cpp).
 //
-// Плагин при загрузке игры ищет в logic.dll всё, что собирается править (функция resolve):
-//   * пять классов компонентов по имени (RTTI) - и их таблицы методов (vtable);
-//   * места в коде по шаблонам байтов - каждый шаблон должен найтись ровно столько раз, сколько ожидается;
-//   * адреса нескольких функций и переменных игры - по инструкциям call/lea/movss внутри найденного кода.
-// Здесь собирается образ, где всё это лежит ровно так, как ожидает плагин. Байты берутся из констант
-// самого плагина (kSig*, kPrologue*) - то есть образ построен по его собственным предположениям о коде
-// игры, а не по настоящей игре. Тесты потом портят по одной детали и смотрят, что плагин это заметил.
+// When the game loads, the plugin searches logic.dll for everything it is going to patch (function resolve):
+//   * five component classes by name (RTTI) - and their method tables (vtables);
+//   * code locations by byte patterns - each pattern must be found exactly as many times as expected;
+//   * addresses of several game functions and variables - from call/lea/movss instructions inside the code
+//     already found.
+// Here we build an image where all of that lies exactly where the plugin expects it. The bytes come from the
+// plugin's own constants (kSig*, kPrologue*) - so the image is built from the plugin's own assumptions about
+// the game code, not from the real game. The tests then spoil one detail at a time and check that the
+// plugin notices.
 //
-// Подключается ПОСЛЕ spares_supply.cpp (нужны его константы).
+// Include AFTER spares_supply.cpp (it needs the plugin's constants).
 #pragma once
 
 #include "fake_pe.h"
@@ -18,22 +20,22 @@ namespace fake {
 struct FakeLogic {
     Pe pe;
 
-    // Классы: vtable и адрес имени (чтобы «удалить» класс, испортив имя).
+    // Classes: vtable and name address (to "remove" a class by spoiling its name).
     uintptr_t ammoVt, fuelVt, sparesVt, repairVt, modulesVt;
     uintptr_t ammoName, fuelName, sparesName, repairName, modulesName;
 
-    // «Функции» в слотах vtable: начинаются с ожидаемых плагином байтов, больше ничего в них нет
-    // (их никто не выполняет).
+    // "Functions" in vtable slots: they start with the bytes the plugin expects, and contain nothing else
+    // (nobody executes them).
     uintptr_t ammoOn, ammoOff, ammoUpdate, ammoCan, fuelOn, fuelOff, fuelUpdate;
     uintptr_t sparesOn, sparesOff, sparesUpdate, repairOn, repairOff, repairUpdate;
 
-    // Места в коде и данные.
-    uintptr_t supportSite[2];     // «support блокирует ammunition_recharge»: машины, танки
-    uintptr_t repairSite[2];      // «repair блокирует ammunition_recharge»: машины, танки
-    uintptr_t refuelSite;         // тот же шаблон флага, но для другого компонента - плагин его не трогает
-    uintptr_t repairString;       // строка "[Leonardo.RepairerFacet]", на неё указывают lea в repairSite
-    uintptr_t radiusLoad, radiusConst;      // поиск целей запчастей: movss xmm2,[20.0]
-    uintptr_t supplyRadiusUse, supplyRadius;  // конструктор боеприпасов читает глобальный supplyRadius
+    // Code locations and data.
+    uintptr_t supportSite[2];     // "support blocks ammunition_recharge": cars, tanks
+    uintptr_t repairSite[2];      // "repair blocks ammunition_recharge": cars, tanks
+    uintptr_t refuelSite;         // the same flag pattern for another component - the plugin leaves it alone
+    uintptr_t repairString;       // the string "[Leonardo.RepairerFacet]" the lea in repairSite points to
+    uintptr_t radiusLoad, radiusConst;      // spare parts target search: movss xmm2,[20.0]
+    uintptr_t supplyRadiusUse, supplyRadius;  // the ammo constructor reads the global supplyRadius
     uintptr_t showCircle, circleLea, materialTable;
     uintptr_t incHealthCall, incHealth, diplomacy;
 
@@ -44,16 +46,16 @@ struct FakeLogic {
         repairVt = pe.addClass("RepairerFacet@Leonardo", 20, 0, false, &repairName);
         modulesVt = pe.addClass("DamageableModulesFacet@Leonardo", 40, 0, false, &modulesName);
 
-        // Функции игры, адреса которых плагин достаёт из call: тела не нужны, кроме начала incHealth.
+        // Game functions whose addresses the plugin takes from a call: no bodies needed, except incHealth's start.
         diplomacy = stub("48 89 5C 24 08 C3");
         materialTable = stub("48 8D 05 00 00 00 00 C3");
         incHealth = stub(kPrologueIncHealth);
 
-        // Методы в vtable.
+        // Methods in the vtables.
         ammoOn = slot(ammoVt, kSlotActivate, kPrologueRechargerOn);
         ammoOff = slot(ammoVt, kSlotDeactivate, kPrologueRechargerOff);
         ammoUpdate = slot(ammoVt, kSlotUpdate, kPrologueAmmoUpdate);
-        // canRecharge: начало, а на +0x3a - вызов «дипломатии мира».
+        // canRecharge: its start, and at +0x3a the call to "world diplomacy".
         std::vector<uint8_t> can = hex(kPrologueAmmoCan);
         can.resize(kDiplomacyCallAt, 0xCC);
         auto call = hex(kSigDiplomacyCall);
@@ -71,8 +73,8 @@ struct FakeLogic {
         repairOff = slot(repairVt, kSlotDeactivate, kPrologueRepairOff);
         repairUpdate = slot(repairVt, kSlotUpdate, kPrologueRepairUpdate);
 
-        // «mov r15b,1; ...; lea rcx,[имя компонента]» в сборщиках описаний машин и танков. lea в начале
-        // шаблона (со смещения 7, длина 7) указывает на строку-имя компонента.
+        // "mov r15b,1; ...; lea rcx,[component name]" in the car and tank description builders. The lea at the
+        // start of the pattern (at offset 7, length 7) points to the component's name string.
         uintptr_t sparesString = pe.putString(pe.rdata, "[Leonardo.SparesRechargerFacet]");
         repairString = pe.putString(pe.rdata, "[Leonardo.RepairerFacet]");
         uintptr_t fuelString = pe.putString(pe.rdata, "[Leonardo.RefuellerFacet]");
@@ -83,16 +85,17 @@ struct FakeLogic {
         for (auto& site : repairSite) site = abilityFlag(repairString);
         refuelSite = abilityFlag(fuelString);
 
-        // Радиус поиска целей запчастей: movss xmm2,[rip+disp] -> константа 20.0 в .rdata.
+        // Spare parts search radius: movss xmm2,[rip+disp] -> the constant 20.0 in .rdata.
         radiusConst = pe.put(pe.rdata, bytesOf(20.0f), 4);
         radiusLoad = pe.put(pe.text, kSigSparesRadiusLoad);
         Pe::aim(radiusLoad, 4, 8, radiusConst);
-        // Глобальный supplyRadius в .data и инструкция, которая его читает.
+        // The global supplyRadius in .data and the instruction that reads it.
         supplyRadius = pe.put(pe.data, bytesOf(20.0f), 4);
         supplyRadiusUse = pe.put(pe.text, kSigSupplyRadiusUse);
         Pe::aim(supplyRadiusUse, 4, 8, supplyRadius);
 
-        // Функция круга зоны: её начало, на +0x77 - lea материала, за 12 байт до lea - call таблицы материалов.
+        // The zone circle function: its start, the material lea at +0x77, and 12 bytes before the lea - the
+        // call to the material table.
         std::vector<uint8_t> circle = hex(kSigShowCircle);
         circle.resize(0x77, 0xCC);
         auto lea = hex(kSigCircleMaterialLea);
@@ -101,19 +104,19 @@ struct FakeLogic {
         circleLea = showCircle + 0x77;
         putCall(circleLea - kMaterialTableCallBack, materialTable);
 
-        // RepairerFacet::update: «...; call incHealth» (call - с 15-го байта шаблона).
+        // RepairerFacet::update: "...; call incHealth" (the call is at byte 15 of the pattern).
         incHealthCall = pe.put(pe.text, kSigIncHealthCall);
         Pe::aim(incHealthCall + 15, 1, 5, incHealth);
     }
 
-    // Вписать по адресу at инструкцию «call target» (E8 + смещение).
+    // Write a "call target" instruction (E8 + offset) at address at.
     static void putCall(uintptr_t at, uintptr_t target) {
         Pe::write(at, {0xE8});
         Pe::aim(at, 1, 5, target);
     }
-    // Испортить первый байт - место или функция больше не совпадает со своим шаблоном.
+    // Spoil the first byte - the location or function no longer matches its pattern.
     static void spoil(uintptr_t at) { Pe::write(at, {0x00}); }
-    // Положить в код ещё одну копию шаблона (чтобы он нашёлся дважды). Возвращает её адрес.
+    // Put another copy of a pattern into the code (so it is found twice). Returns the copy's address.
     uintptr_t duplicate(const char* pattern) { return pe.put(pe.text, pattern); }
 
 private:

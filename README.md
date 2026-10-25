@@ -111,7 +111,7 @@ cmake --build cmake-build-debug --target release
 cmake --build cmake-build-debug && ctest --test-dir cmake-build-debug --output-on-failure
 ```
 
-Пометка `ОСОБЕННОСТЬ:` в тестах — текущее поведение, которое выглядит странно; тест фиксирует его, чтобы
+Пометка `QUIRK:` в тестах — текущее поведение, которое выглядит странно; тест фиксирует его, чтобы
 оно не изменилось случайно.
 
 ## Проверка в игре

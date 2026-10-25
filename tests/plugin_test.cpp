@@ -1,20 +1,20 @@
-// Тесты поведения плагина SparesSupply во время игры.
+// Tests of how the SparesSupply plugin behaves during a game.
 //
-// Что проверяется - то, что видит игрок:
-//   * HEMTT Spares в режиме F4 (SUPPLY MODE) раздаёт запчасти, а не патроны, и рисует свой круг зоны;
-//   * HEMTT Repair в режиме F4 чинит модули и восстанавливает броню только своим и союзникам, платит
-//     своими запчастями, а не запчастями ремонтируемой машины;
-//   * обычный HEMTT Supply и прочие машины ведут себя так же, как без мода.
-// Плагин делает это, перехватывая методы компонентов игры («перехват» = наша функция вместо игровой;
-// она обычно вызывает и исходную). Здесь перехваты вызываются напрямую - так, как их вызвала бы игра, -
-// на поддельных машинах (support/fake_engine.h), и проверяется, что они сделали.
+// What is checked is what the player sees:
+//   * HEMTT Spares in F4 mode (SUPPLY MODE) hands out spare parts, not ammo, and draws its own zone circle;
+//   * HEMTT Repair in F4 mode repairs modules and restores armor only for its own side and allies, and pays
+//     with its own spare parts, not with those of the vehicle being repaired;
+//   * the ordinary HEMTT Supply and other vehicles behave exactly as without the mod.
+// The plugin does this by hooking methods of game components (a "hook" = our function instead of the game's;
+// it usually calls the original too). Here the hooks are called directly - the way the game would call
+// them - on fake vehicles (support/fake_engine.h), and the test checks what they did.
 //
-// Код плагина подключается сюда целиком (#include .cpp), чтобы тесту были видны его внутренние функции.
-// После рефакторинга, если функции переедут или переименуются, менять нужно только подключение и
-// подделки - сами проверки описывают поведение и должны остаться прежними.
+// The plugin code is included here whole (#include .cpp) so the test can see its internal functions. If the
+// refactoring moves or renames them, only the include and the fakes need to change - the checks themselves
+// describe the behaviour and should stay as they are.
 //
-// Пометка «ОСОБЕННОСТЬ:» - поведение, которое выглядит странно, но таково сейчас. Тест фиксирует его,
-// чтобы рефакторинг не изменил его незаметно; менять - осознанно, вместе с тестом.
+// "QUIRK:" marks behaviour that looks odd but is how things work today. The test pins it so the refactoring
+// does not change it unnoticed; change it deliberately, together with the test.
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
@@ -27,7 +27,7 @@ using namespace fake;
 
 namespace {
 
-// Лог плагина в тестах - plugin_test.log рядом с программой (в игре - bin\plugins\SparesSupply.log).
+// The plugin's log in tests - plugin_test.log next to the program (in the game - bin\plugins\SparesSupply.log).
 std::wstring logFile() {
     static bool opened = false;
     if (!opened) {
@@ -37,7 +37,7 @@ std::wstring logFile() {
     return logPath(L"plugin_test");
 }
 
-// Общая подготовка каждого теста: свежая «игра» и сброшенное состояние плагина.
+// Common setup for every test: a fresh "game" and a reset plugin state.
 struct Engine {
     Engine() {
         logFile();
@@ -45,8 +45,8 @@ struct Engine {
     }
 };
 
-// Типичные машины. HEMTT Supply - только боеприпасы; HEMTT Spares - боеприпасы (ради кнопки F4) и
-// запчасти; HEMTT Repair - боеприпасы (ради F4 и круга) и ремонт (метка «ремонтная машина»).
+// Typical vehicles. HEMTT Supply - ammo only; HEMTT Spares - ammo (for the F4 button) and spare parts;
+// HEMTT Repair - ammo (for F4 and the circle) and repair (the "repair vehicle" marker).
 struct Supply {
     Vehicle v;
     Facet& ammo = v.add(g_a.ammoVt);
@@ -58,13 +58,13 @@ struct Spares {
 };
 struct Repair {
     Vehicle v;
-    Facet& repair = v.add(g_a.repairVt);  // в игре компонент ремонта создаётся раньше боеприпасов
+    Facet& repair = v.add(g_a.repairVt);  // in the game the repair component is created before ammo
     Facet& ammo = v.add(g_a.ammoVt);
     Facet& modules;
     explicit Repair(int stock = 10000) : modules(v.addModules({ModuleSpec{}}, stock)) {}
 };
 
-// Повреждённая машина: модули specs (по умолчанию - один модуль 50/100), запчастей у неё самой - 7.
+// A damaged vehicle: modules `specs` (default - one module at 50/100), with 7 spare parts of its own.
 struct Damaged {
     Vehicle v;
     Facet& modules;
@@ -74,11 +74,11 @@ struct Damaged {
 
 }  // namespace
 
-// ================================================================ лог зоны запчастей
-// Эти тесты идут первыми: счётчик строк «spares active» в плагине общий на весь запуск игры (и тестов).
+// ================================================================ spare parts zone log
+// These tests come first: the plugin's "spares active" line counter is shared for the whole game run (and test run).
 
-TEST_CASE_FIXTURE(Engine, "Лог зоны запчастей: радиус и сколько машин в зоне") {
-    // Подготовка: включённые запчасти, в их списке целей ([+0x28..+0x30]) - 3 машины, радиус зоны 25 м.
+TEST_CASE_FIXTURE(Engine, "Spare parts zone log: radius and number of vehicles in the zone") {
+    // Setup: spare parts on, 3 vehicles in their target list ([+0x28..+0x30]), zone radius 25 m.
     Spares s;
     turnOn(s.spares, kSparesOff);
     void* list[3] = {};
@@ -87,82 +87,82 @@ TEST_CASE_FIXTURE(Engine, "Лог зоны запчастей: радиус и �
     g_supplyRadius = 25.0f;
     LogTail log(logFile());
 
-    // Действие: секунда работы зоны.
+    // Action: one second of the zone working.
     hookSparesUpdate(s.spares.p(), 1.0f);
 
-    // Ожидаем: строка в логе раз в секунду - с радиусом и числом машин.
+    // Expected: one log line per second - with the radius and the number of vehicles.
     CHECK(log.has("radius=25.0 targets=3"));
 }
 
-TEST_CASE_FIXTURE(Engine, "Лог зоны запчастей: не больше 20 строк за запуск") {
+TEST_CASE_FIXTURE(Engine, "Spare parts zone log: at most 20 lines per run") {
     Spares s;
     turnOn(s.spares, kSparesOff);
-    for (int i = 0; i < 30; ++i) hookSparesUpdate(s.spares.p(), 1.0f);  // 30 секунд работы
+    for (int i = 0; i < 30; ++i) hookSparesUpdate(s.spares.p(), 1.0f);  // 30 seconds of work
     CHECK(countOf(readFile(logFile()), "spares active") == 20);
 }
 
-// ================================================================ поиск компонента у машины
+// ================================================================ finding a vehicle's component
 
-TEST_CASE_FIXTURE(Engine, "findFacet находит компонент точного класса и не портит счётчики ссылок") {
-    // Подготовка: машина с боеприпасами и запчастями.
+TEST_CASE_FIXTURE(Engine, "findFacet finds the component of the exact class and keeps reference counts intact") {
+    // Setup: a vehicle with ammo and spare parts.
     Spares s;
 
-    // Ожидаем: находится нужный компонент; компонента ремонта нет - пустота; без машины - пустота.
+    // Expected: the right component is found; there is no repair component - nothing; no vehicle - nothing.
     CHECK(findFacet(&s.v, g_a.sparesVt) == s.spares.p());
     CHECK(findFacet(&s.v, g_a.ammoVt) == s.ammo.p());
     CHECK(findFacet(&s.v, g_a.repairVt) == nullptr);
     CHECK(findFacet(nullptr, g_a.ammoVt) == nullptr);
 
-    // Каждую взятую ссылку плагин вернул: счётчики как были, ничего не освобождено.
+    // The plugin gave back every reference it took: counts unchanged, nothing freed.
     for (auto& b : s.v.blocks) CHECK(b.strong == 1);
     CHECK(g_freed == 0);
-    // Каждый итератор удалён, и с флагом 1 (так удаляет их сама игра).
+    // Every iterator was deleted, with flag 1 (that is how the game itself deletes them).
     CHECK(g_iterDeleted == g_iterCreated);
     for (int f : g_iterDeleteFlags) CHECK(f == 1);
 }
 
-TEST_CASE_FIXTURE(Engine, "findFacet: класс сравнивается точно, берётся первый подходящий") {
+TEST_CASE_FIXTURE(Engine, "findFacet: the class is compared exactly, the first match wins") {
     Vehicle v;
-    v.add(vt(g_otherVt));  // другой класс (например, наследник) - не подходит
+    v.add(vt(g_otherVt));  // a different class (e.g. a subclass) - does not match
     Facet& first = v.add(g_a.ammoVt);
     v.add(g_a.ammoVt);
     CHECK(findFacet(&v, g_a.ammoVt) == first.p());
 }
 
-TEST_CASE_FIXTURE(Engine, "findFacet: машина не выдала итератор - компонента нет") {
+TEST_CASE_FIXTURE(Engine, "findFacet: the vehicle gave no iterator - no component") {
     Spares s;
     s.v.nullIterator = true;
     CHECK(findFacet(&s.v, g_a.sparesVt) == nullptr);
 }
 
-// ================================================================ какая это машина
+// ================================================================ what kind of vehicle this is
 
-TEST_CASE_FIXTURE(Engine, "kindOf: машину мода узнаём по компонентам") {
+TEST_CASE_FIXTURE(Engine, "kindOf: a mod vehicle is recognised by its components") {
     Supply supply;
     Spares spares;
     Repair repair;
-    CHECK(kindOf(supply.ammo.p()) == Kind::Ammo);    // обычный HEMTT Supply
-    CHECK(kindOf(spares.ammo.p()) == Kind::Spares);  // есть запчасти -> HEMTT Spares
-    CHECK(kindOf(repair.ammo.p()) == Kind::Repair);  // есть ремонт -> HEMTT Repair
+    CHECK(kindOf(supply.ammo.p()) == Kind::Ammo);    // ordinary HEMTT Supply
+    CHECK(kindOf(spares.ammo.p()) == Kind::Spares);  // has spare parts -> HEMTT Spares
+    CHECK(kindOf(repair.ammo.p()) == Kind::Repair);  // has repair -> HEMTT Repair
 
-    // И запчасти, и ремонт - считается HEMTT Spares (запчасти проверяются первыми).
+    // Both spare parts and repair - counts as HEMTT Spares (spare parts are checked first).
     Vehicle both;
     Facet& ammo = both.add(g_a.ammoVt);
     both.add(g_a.repairVt);
     both.add(g_a.sparesVt);
     CHECK(kindOf(ammo.p()) == Kind::Spares);
 
-    // Компонент без машины-владельца - обычный.
+    // A component without an owner vehicle - ordinary.
     Facet orphan;
     CHECK(kindOf(orphan.p()) == Kind::Ammo);
 }
 
-// ================================================================ HEMTT Spares: режим F4
+// ================================================================ HEMTT Spares: F4 mode
 
-TEST_CASE_FIXTURE(Engine, "syncSpares переключает запчасти, только если они в другом состоянии") {
+TEST_CASE_FIXTURE(Engine, "syncSpares switches spare parts only if they are in the other state") {
     Spares s;
     syncSpares(s.ammo.p(), true);
-    syncSpares(s.ammo.p(), true);  // уже включены - второй раз не включаем
+    syncSpares(s.ammo.p(), true);  // already on - not switched on a second time
     CHECK(calls("spares.on", s.spares.p()) == 1);
     CHECK(isOnFlag(s.spares, kSparesOff));
     syncSpares(s.ammo.p(), false);
@@ -170,75 +170,75 @@ TEST_CASE_FIXTURE(Engine, "syncSpares переключает запчасти, �
     CHECK(calls("spares.off", s.spares.p()) == 1);
     CHECK_FALSE(isOnFlag(s.spares, kSparesOff));
 
-    // У машины без запчастей - ничего.
+    // A vehicle without spare parts - nothing.
     Supply supply;
     syncSpares(supply.ammo.p(), true);
     CHECK(calls("spares.on") == 1);
 }
 
-TEST_CASE_FIXTURE(Engine, "HEMTT Spares: F4 включает запчасти и перекрашивает круг в гаечные ключи") {
-    // Подготовка: HEMTT Spares, всё выключено.
+TEST_CASE_FIXTURE(Engine, "HEMTT Spares: F4 switches spare parts on and repaints the circle with wrenches") {
+    // Setup: HEMTT Spares, everything off.
     Spares s;
 
-    // Действие: игрок нажал F4 - игра включает компонент боеприпасов.
+    // Action: the player pressed F4 - the game switches the ammo component on.
     hookAmmoOn(s.ammo.p());
 
-    // Ожидаем: сначала оригинал (включает боеприпасы и рисует круг патронов), затем включаются запчасти.
+    // Expected: first the original (switches ammo on and draws the ammo circle), then spare parts go on.
     CHECK(callNames() == std::vector<std::string>{"ammo.on", "spares.on"});
     CHECK(isOnFlag(s.spares, kSparesOff));
-    // Круг перерисован один раз - материалом запчастей: в lea на время рисования стояло 0xE0
-    // (sparesRecharge), строка в таблице материалов - не тронута.
+    // The circle was redrawn once - with the spare parts material: while drawing, the lea held 0xE0
+    // (sparesRecharge), and the string in the material table was not touched.
     REQUIRE(g_draws.size() == 1);
     CHECK(g_draws[0].ammo == s.ammo.p());
     CHECK(g_draws[0].lea == 0xE0u);
     CHECK(g_draws[0].material == kAmmoMaterial);
-    // После рисования lea возвращена: остальные машины рисуют круг патронов, как обычно.
+    // After drawing, the lea is restored: other vehicles draw the ammo circle as usual.
     CHECK(leaOffset() == 0x120u);
-    // Новый круг запомнен как «уже наш».
+    // The new circle is remembered as "already ours".
     CHECK(g_ownCircles.count(circleField(s.ammo)) == 1);
 }
 
-TEST_CASE_FIXTURE(Engine, "HEMTT Supply: F4 работает как без мода") {
+TEST_CASE_FIXTURE(Engine, "HEMTT Supply: F4 works as without the mod") {
     Supply s;
     void* circleBefore = nullptr;
     hookAmmoOn(s.ammo.p());
     circleBefore = circleField(s.ammo);
     CHECK(callNames() == std::vector<std::string>{"ammo.on"});
-    CHECK(g_draws.empty());                    // круг не перерисован
+    CHECK(g_draws.empty());                    // the circle is not redrawn
     CHECK(circleField(s.ammo) == circleBefore);
     CHECK(g_ownCircles.empty());
 }
 
-TEST_CASE_FIXTURE(Engine, "Круг перерисовывается один раз, а не каждый кадр") {
+TEST_CASE_FIXTURE(Engine, "The circle is redrawn once, not every frame") {
     Spares s;
     hookAmmoOn(s.ammo.p());
-    for (int i = 0; i < 5; ++i) hookAmmoUpdate(s.ammo.p(), 0.1f);  // 5 кадров
+    for (int i = 0; i < 5; ++i) hookAmmoUpdate(s.ammo.p(), 0.1f);  // 5 frames
     CHECK(g_draws.size() == 1);
 }
 
-TEST_CASE_FIXTURE(Engine, "Круг, нарисованный без плагина (загрузка сохранения), перекрашивается в update") {
-    // Подготовка: боеприпасы уже включены и круг патронов уже есть - плагин при этом не участвовал.
+TEST_CASE_FIXTURE(Engine, "A circle drawn without the plugin (loading a save) is repainted in update") {
+    // Setup: ammo already on and an ammo circle already there - the plugin took no part in it.
     Spares s;
     turnOn(s.ammo, kAmmoOff);
     circleField(s.ammo) = newCircle();
 
-    // Действие: обычный кадр игры.
+    // Action: an ordinary game frame.
     hookAmmoUpdate(s.ammo.p(), 0.1f);
 
-    // Ожидаем: круг перекрашен материалом запчастей.
+    // Expected: the circle is repainted with the spare parts material.
     REQUIRE(g_draws.size() == 1);
     CHECK(g_draws[0].lea == 0xE0u);
 }
 
-TEST_CASE_FIXTURE(Engine, "Нет круга - перекрашивать нечего") {
+TEST_CASE_FIXTURE(Engine, "No circle - nothing to repaint") {
     Spares s;
-    turnOn(s.ammo, kAmmoOff);  // включены, но круга ([+0x50]) нет
+    turnOn(s.ammo, kAmmoOff);  // on, but there is no circle ([+0x50])
     hookAmmoUpdate(s.ammo.p(), 0.1f);
     CHECK(g_draws.empty());
 }
 
-TEST_CASE_FIXTURE(Engine, "Инструкцию lea не удалось сделать записываемой - у HEMTT Spares остаётся круг патронов") {
-    // ОСОБЕННОСТЬ: у HEMTT Repair круг другим способом (подмена строки), поэтому он всё равно свой.
+TEST_CASE_FIXTURE(Engine, "The lea instruction could not be made writable - HEMTT Spares keeps the ammo circle") {
+    // QUIRK: HEMTT Repair gets its circle another way (string swap), so it still gets its own.
     g_circleWritable = false;
     Spares s;
     hookAmmoOn(s.ammo.p());
@@ -250,7 +250,7 @@ TEST_CASE_FIXTURE(Engine, "Инструкцию lea не удалось сдел
     CHECK(g_draws.size() == 1);
 }
 
-TEST_CASE_FIXTURE(Engine, "HEMTT Spares: выход из F4 выключает запчасти и забывает круг") {
+TEST_CASE_FIXTURE(Engine, "HEMTT Spares: leaving F4 switches spare parts off and forgets the circle") {
     Spares s;
     hookAmmoOn(s.ammo.p());
     void* circle = circleField(s.ammo);
@@ -258,15 +258,16 @@ TEST_CASE_FIXTURE(Engine, "HEMTT Spares: выход из F4 выключает �
 
     hookAmmoOff(s.ammo.p());
 
-    // Ожидаем: сначала оригинал (выключает боеприпасы, убирает круг), потом выключаются запчасти -
-    // напрямую, минуя наш перехват выключения запчастей.
+    // Expected: first the original (switches ammo off, removes the circle), then spare parts are switched
+    // off - directly, bypassing our spare parts "off" hook.
     CHECK(callNames() == std::vector<std::string>{"ammo.off", "spares.off"});
     CHECK_FALSE(isOnFlag(s.spares, kSparesOff));
     CHECK(g_ownCircles.count(circle) == 0);
 }
 
-TEST_CASE_FIXTURE(Engine, "Каждый кадр F4: оригинал update боеприпасов, затем тик запчастей с тем же dt") {
-    // Игра сама update запчастей не вызывает - без плагина включённые запчасти ничего бы не раздавали.
+TEST_CASE_FIXTURE(Engine, "Every F4 frame: the original ammo update, then a spare parts tick with the same dt") {
+    // The game never calls the spare parts update itself - without the plugin, switched-on spare parts would
+    // hand out nothing.
     Spares s;
     hookAmmoOn(s.ammo.p());
     g_calls.clear();
@@ -280,7 +281,7 @@ TEST_CASE_FIXTURE(Engine, "Каждый кадр F4: оригинал update б�
     CHECK(g_calls[1].dt == 0.25f);
 }
 
-TEST_CASE_FIXTURE(Engine, "Вне режима F4 update боеприпасов - только оригинал") {
+TEST_CASE_FIXTURE(Engine, "Outside F4 mode the ammo update is only the original") {
     Spares s;
     Repair r;
     hookAmmoUpdate(s.ammo.p(), 0.25f);
@@ -290,8 +291,8 @@ TEST_CASE_FIXTURE(Engine, "Вне режима F4 update боеприпасов 
     CHECK(g_draws.empty());
 }
 
-TEST_CASE_FIXTURE(Engine, "F4 включён, а запчасти выключены - запчасти не тикаются") {
-    // ОСОБЕННОСТЬ: круг при этом всё равно перекрашивается в материал запчастей.
+TEST_CASE_FIXTURE(Engine, "F4 on but spare parts off - spare parts are not ticked") {
+    // QUIRK: the circle is still repainted with the spare parts material.
     Spares s;
     turnOn(s.ammo, kAmmoOff);
     circleField(s.ammo) = newCircle();
@@ -300,17 +301,17 @@ TEST_CASE_FIXTURE(Engine, "F4 включён, а запчасти выключе
     CHECK(g_draws.size() == 1);
 }
 
-TEST_CASE_FIXTURE(Engine, "Перехват update запчастей вызывает оригинал с тем же dt") {
+TEST_CASE_FIXTURE(Engine, "The spare parts update hook calls the original with the same dt") {
     Spares s;
-    hookSparesUpdate(s.spares.p(), 0.5f);  // выключены - всё равно оригинал
+    hookSparesUpdate(s.spares.p(), 0.5f);  // off - the original is still called
     REQUIRE(g_calls.size() == 1);
     CHECK(g_calls[0].what == "spares.update");
     CHECK(g_calls[0].dt == 0.5f);
 }
 
-TEST_CASE_FIXTURE(Engine, "Выключение запчастей пропускается, пока у машины идёт режим F4") {
-    // Приказ «пополнить запчасти» по клику по окончании выключает запчасти; в режиме F4 это оборвало бы
-    // раздачу по зоне.
+TEST_CASE_FIXTURE(Engine, "Switching spare parts off is skipped while the vehicle is in F4 mode") {
+    // The click order "resupply spare parts" switches spare parts off when it ends; in F4 mode that would cut
+    // the zone resupply short.
     Spares s;
     turnOn(s.spares, kSparesOff);
     turnOn(s.ammo, kAmmoOff);
@@ -318,13 +319,13 @@ TEST_CASE_FIXTURE(Engine, "Выключение запчастей пропус�
     CHECK(calls("spares.off") == 0);
     CHECK(isOnFlag(s.spares, kSparesOff));
 
-    // Режим F4 закончился - выключение проходит.
+    // F4 mode is over - switching off goes through.
     s.ammo.at<uint8_t>(kAmmoOff) = 1;
     hookSparesOff(s.spares.p());
     CHECK(calls("spares.off") == 1);
 }
 
-TEST_CASE_FIXTURE(Engine, "Выключение запчастей пропускается и при включённом заправщике") {
+TEST_CASE_FIXTURE(Engine, "Switching spare parts off is also skipped while the refueller is on") {
     Vehicle v;
     Facet& fuel = v.add(g_a.fuelVt);
     Facet& spares = v.add(g_a.sparesVt);
@@ -334,7 +335,7 @@ TEST_CASE_FIXTURE(Engine, "Выключение запчастей пропус�
     CHECK(calls("spares.off") == 0);
 }
 
-TEST_CASE_FIXTURE(Engine, "Запчасти у машины без боеприпасов и заправщика выключаются как обычно") {
+TEST_CASE_FIXTURE(Engine, "Spare parts on a vehicle without ammo or refueller switch off as usual") {
     Vehicle v;
     Facet& spares = v.add(g_a.sparesVt);
     turnOn(spares, kSparesOff);
@@ -342,10 +343,10 @@ TEST_CASE_FIXTURE(Engine, "Запчасти у машины без боепри�
     CHECK(calls("spares.off") == 1);
 }
 
-// ================================================================ заправщик + запчасти
+// ================================================================ refueller + spare parts
 
-TEST_CASE_FIXTURE(Engine, "Заправщик: F4 включает и выключает запчасти той же машины") {
-    // На случай машины с refuel и support: тогда режим F4 включает заправщик.
+TEST_CASE_FIXTURE(Engine, "Refueller: F4 switches the same vehicle's spare parts on and off") {
+    // For a vehicle with refuel and support: then F4 mode switches the refueller.
     Vehicle v;
     Facet& fuel = v.add(g_a.fuelVt);
     Facet& spares = v.add(g_a.sparesVt);
@@ -356,10 +357,10 @@ TEST_CASE_FIXTURE(Engine, "Заправщик: F4 включает и выклю
     g_calls.clear();
     hookFuelOff(fuel.p());
     CHECK(callNames() == std::vector<std::string>{"fuel.off", "spares.off"});
-    CHECK(g_draws.empty());  // круг заправщика не трогаем
+    CHECK(g_draws.empty());  // the refueller's circle is left alone
 }
 
-TEST_CASE_FIXTURE(Engine, "Заправщик без запчастей - только оригинал") {
+TEST_CASE_FIXTURE(Engine, "Refueller without spare parts - only the original") {
     Vehicle v;
     Facet& fuel = v.add(g_a.fuelVt);
     hookFuelOn(fuel.p());
@@ -367,12 +368,12 @@ TEST_CASE_FIXTURE(Engine, "Заправщик без запчастей - тол
     CHECK(callNames() == std::vector<std::string>{"fuel.on", "fuel.off"});
 }
 
-TEST_CASE_FIXTURE(Engine, "Заправщик: каждый кадр F4 - оригинал и тик запчастей") {
+TEST_CASE_FIXTURE(Engine, "Refueller: every F4 frame - the original and a spare parts tick") {
     Vehicle v;
     Facet& fuel = v.add(g_a.fuelVt);
     Facet& spares = v.add(g_a.sparesVt);
 
-    hookFuelUpdate(fuel.p(), 0.2f);  // выключен - только оригинал
+    hookFuelUpdate(fuel.p(), 0.2f);  // off - only the original
     CHECK(callNames() == std::vector<std::string>{"fuel.update"});
 
     g_calls.clear();
@@ -385,33 +386,33 @@ TEST_CASE_FIXTURE(Engine, "Заправщик: каждый кадр F4 - ори
     CHECK(g_calls[1].dt == 0.2f);
 }
 
-// ================================================================ патроны машины мода не раздают
+// ================================================================ mod vehicles hand out no ammo
 
-TEST_CASE_FIXTURE(Engine, "canRecharge: HEMTT Spares и HEMTT Repair патроны не раздают никогда") {
+TEST_CASE_FIXTURE(Engine, "canRecharge: HEMTT Spares and HEMTT Repair never hand out ammo") {
     Spares s;
     Repair r;
     Vehicle target;
     CHECK_FALSE(hookAmmoCanRecharge(s.ammo.p(), &target));
     CHECK_FALSE(hookAmmoCanRecharge(r.ammo.p(), &target));
-    CHECK(calls("ammo.canRecharge") == 0);  // оригинал даже не спрашивается
+    CHECK(calls("ammo.canRecharge") == 0);  // the original is not even asked
 }
 
-TEST_CASE_FIXTURE(Engine, "canRecharge: обычному HEMTT Supply отвечает игра") {
+TEST_CASE_FIXTURE(Engine, "canRecharge: for an ordinary HEMTT Supply the game decides") {
     Supply s;
     Vehicle target;
     g_canAnswer = true;
     CHECK(hookAmmoCanRecharge(s.ammo.p(), &target));
-    CHECK(g_canTarget == &target);  // та же цель передана оригиналу
+    CHECK(g_canTarget == &target);  // the same target was passed to the original
     g_canAnswer = false;
     CHECK_FALSE(hookAmmoCanRecharge(s.ammo.p(), &target));
     CHECK(calls("ammo.canRecharge") == 2);
 }
 
-// ================================================================ HEMTT Repair: режим F4
+// ================================================================ HEMTT Repair: F4 mode
 
-TEST_CASE_FIXTURE(Engine, "HEMTT Repair: F4 включает ремонт и боеприпасы, круг - материалом ремонта") {
-    // Режим F4 у HEMTT Repair включает компонент ремонта (он у машины первый), а круг рисуют и цели
-    // собирают боеприпасы - поэтому включение передаётся им.
+TEST_CASE_FIXTURE(Engine, "HEMTT Repair: F4 switches repair and ammo on, circle with the repair material") {
+    // F4 mode on HEMTT Repair switches the repair component (it is the vehicle's first one), but the circle is
+    // drawn and the targets collected by ammo - so the switch is passed on to it.
     Repair r;
 
     hookRepairOn(r.repair.p());
@@ -419,44 +420,44 @@ TEST_CASE_FIXTURE(Engine, "HEMTT Repair: F4 включает ремонт и б�
     CHECK(callNames() == std::vector<std::string>{"repair.on", "ammo.on"});
     CHECK(isOnFlag(r.repair, kRepairOff));
     CHECK(isOnFlag(r.ammo, kAmmoOff));
-    // Круг: на время рисования строка ammoRecharge в таблице подменена путём материала ремонта...
+    // Circle: while drawing, the ammoRecharge string in the table was replaced with the repair material path...
     REQUIRE(g_draws.size() == 1);
     CHECK(g_draws[0].material == "materials/rounds/repairRecharge.material");
-    CHECK(g_draws[0].lea == 0x120u);  // lea не трогается
+    CHECK(g_draws[0].lea == 0x120u);  // the lea is not touched
     CHECK(g_materialTableCalls == 1);
-    // ...и сразу возвращена обратно.
+    // ...and put back right away.
     CHECK(std::string(ammoMaterialEntry().ptr, ammoMaterialEntry().size) == kAmmoMaterial);
     CHECK(ammoMaterialEntry().capacity == strlen(kAmmoMaterial));
 }
 
-TEST_CASE_FIXTURE(Engine, "HEMTT Repair: повторное включение не включает боеприпасы второй раз") {
+TEST_CASE_FIXTURE(Engine, "HEMTT Repair: switching on again does not switch ammo on a second time") {
     Repair r;
     turnOn(r.ammo, kAmmoOff);
     hookRepairOn(r.repair.p());
     CHECK(callNames() == std::vector<std::string>{"repair.on"});
 }
 
-TEST_CASE_FIXTURE(Engine, "HEMTT Repair: выход из F4 выключает и боеприпасы") {
+TEST_CASE_FIXTURE(Engine, "HEMTT Repair: leaving F4 switches ammo off too") {
     Repair r;
     hookRepairOn(r.repair.p());
     g_calls.clear();
     hookRepairOff(r.repair.p());
     CHECK(callNames() == std::vector<std::string>{"repair.off", "ammo.off"});
 
-    // Боеприпасы уже выключены - только ремонт.
+    // Ammo is already off - only repair.
     g_calls.clear();
     hookRepairOff(r.repair.p());
     CHECK(callNames() == std::vector<std::string>{"repair.off"});
 }
 
-TEST_CASE_FIXTURE(Engine, "Собственный update ремонта игры не выполняется вовсе") {
-    // Он в игре недоделан: ищет цели и выбрасывает результат.
+TEST_CASE_FIXTURE(Engine, "The game's own repair update is not run at all") {
+    // In the game it is unfinished: it searches for targets and throws the result away.
     Repair r;
     hookRepairUpdate(r.repair.p(), 0.5f);
     CHECK(g_calls.empty());
 }
 
-TEST_CASE_FIXTURE(Engine, "Выход из F4 сбрасывает таймер и долг ремонта") {
+TEST_CASE_FIXTURE(Engine, "Leaving F4 resets the repair timer and debt") {
     Repair r;
     g_repairTimers[r.ammo.p()] = 0.3f;
     g_armorDebt[r.ammo.p()] = 0.5f;
@@ -465,30 +466,30 @@ TEST_CASE_FIXTURE(Engine, "Выход из F4 сбрасывает таймер 
     CHECK(g_armorDebt.count(r.ammo.p()) == 0);
 }
 
-// ================================================================ оплата запчастями
+// ================================================================ paying with spare parts
 
-TEST_CASE("Оплата: дробная цена копится, со склада списываются целые запчасти") {
-    // Подготовка: на складе 10 запчастей, долга нет.
+TEST_CASE("Payment: a fractional price accumulates, whole spare parts are taken from stock") {
+    // Setup: 10 spare parts in stock, no debt.
     int spares = 10;
     float debt = 0;
     Stock stock{spares, debt};
     Repaired r;
 
-    // Действие: заплатить 2.5, затем 0.6.
+    // Action: pay 2.5, then 0.6.
     stock.pay(2.5f, r);
-    // Ожидаем: списано 2 (целая часть), 0.5 осталось в долге.
+    // Expected: 2 taken (the whole part), 0.5 left as debt.
     CHECK(spares == 8);
     CHECK(debt == doctest::Approx(0.5f));
     CHECK(r.spent == 2);
     stock.pay(0.6f, r);
-    // 0.5 + 0.6 = 1.1 -> списана ещё 1, в долге 0.1.
+    // 0.5 + 0.6 = 1.1 -> one more taken, 0.1 left as debt.
     CHECK(spares == 7);
     CHECK(debt == doctest::Approx(0.1f));
     CHECK(r.spent == 3);
 }
 
-TEST_CASE("Оплата: списывается не больше, чем есть; остаток остаётся долгом") {
-    // ОСОБЕННОСТЬ: долг может стать больше склада - он просто ждёт пополнения.
+TEST_CASE("Payment: no more is taken than there is; the rest stays as debt") {
+    // QUIRK: the debt can grow larger than the stock - it just waits for a resupply.
     int spares = 1;
     float debt = 0;
     Stock stock{spares, debt};
@@ -499,24 +500,24 @@ TEST_CASE("Оплата: списывается не больше, чем ест
     CHECK(r.spent == 1);
 }
 
-// ================================================================ ремонт одной машины
+// ================================================================ repairing one vehicle
 
 namespace {
 
-// Один импульс ремонта машины target за счёт склада stock (долг - debt).
+// One repair pulse of vehicle target paid from stock `stock` (debt - debt).
 Repaired pulse(Facet& target, int& stock, float& debt) { return repairVehicle(target.p(), Stock{stock, debt}); }
 
 }  // namespace
 
-TEST_CASE_FIXTURE(Engine, "Ремонт модуля: +2% от максимума за импульс, через движковый incHealth") {
-    // Подготовка: модуль 50 из 100, на складе 1000.
+TEST_CASE_FIXTURE(Engine, "Module repair: +2% of max per pulse, through the engine's incHealth") {
+    // Setup: a module at 50 of 100, 1000 in stock.
     Damaged d;
     int stock = 1000;
     float debt = 0;
 
     Repaired r = pulse(d.modules, stock, debt);
 
-    // Ожидаем: +2 здоровья (2% от 100), через incHealth модуля №0; заплачено 2 запчасти.
+    // Expected: +2 health (2% of 100), via incHealth of module #0; 2 spare parts paid.
     REQUIRE(g_incHealth.size() == 1);
     CHECK(g_incHealth[0].modules == d.modules.p());
     CHECK(g_incHealth[0].index == 0u);
@@ -525,34 +526,34 @@ TEST_CASE_FIXTURE(Engine, "Ремонт модуля: +2% от максимум�
     CHECK(r.health == 2);
     CHECK(r.spent == 2);
     CHECK(stock == 998);
-    // Общее здоровье машины пересчитал движок (incHealth).
+    // The vehicle's total health was recalculated by the engine (incHealth).
     CHECK(totalHp(d.modules) == 52);
 }
 
-TEST_CASE_FIXTURE(Engine, "Ремонт модуля: запчасти ремонтируемой машины не тратятся") {
-    // incHealth - это ремонт экипажем, он списывает запчасти у самой машины. Платит HEMTT Repair,
-    // поэтому плагин возвращает их цели.
-    Damaged d;  // у цели 7 запчастей
+TEST_CASE_FIXTURE(Engine, "Module repair: the repaired vehicle's own spare parts are not spent") {
+    // incHealth is crew repair, it takes spare parts from the vehicle itself. HEMTT Repair pays, so the plugin
+    // gives them back to the target.
+    Damaged d;  // the target has 7 spare parts
     int stock = 1000;
     float debt = 0;
     pulse(d.modules, stock, debt);
     CHECK(sparesIn(d.modules) == 7);
 }
 
-TEST_CASE_FIXTURE(Engine, "Ремонт модуля: минимум 1, не больше недостающего, не больше склада") {
-    // У каждой машины есть ещё целый модуль: машина с общим здоровьем 0 считается уничтоженной.
+TEST_CASE_FIXTURE(Engine, "Module repair: at least 1, no more than missing, no more than in stock") {
+    // Each vehicle also has an intact module: a vehicle with total health 0 counts as destroyed.
     const ModuleSpec intact{100, 100};
     int stock = 1000;
     float debt = 0;
-    // 2% от 30 = 0.6 -> округляется до 0, но меньше 1 не бывает.
+    // 2% of 30 = 0.6 -> rounds down to 0, but it is never less than 1.
     Damaged small(1, {ModuleSpec{0, 30}, intact});
     pulse(small.modules, stock, debt);
     CHECK(moduleHp(small.modules, 0) == 1);
-    // Не хватает 1 до максимума - добавляется 1, а не 2.
+    // 1 short of the maximum - 1 is added, not 2.
     Damaged almost(1, {ModuleSpec{99, 100}, intact});
     pulse(almost.modules, stock, debt);
     CHECK(moduleHp(almost.modules, 0) == 100);
-    // 2% от 1000 = 20, но на складе 3 - добавляется 3.
+    // 2% of 1000 = 20, but only 3 in stock - 3 is added.
     Damaged big(1, {ModuleSpec{0, 1000}, intact});
     int small3 = 3;
     pulse(big.modules, small3, debt);
@@ -560,22 +561,22 @@ TEST_CASE_FIXTURE(Engine, "Ремонт модуля: минимум 1, не б�
     CHECK(small3 == 0);
 }
 
-TEST_CASE_FIXTURE(Engine, "Ремонт: целые модули не трогаются, повреждённые чинятся все за один импульс") {
+TEST_CASE_FIXTURE(Engine, "Repair: intact modules are left alone, all damaged ones are repaired in one pulse") {
     Damaged d(1, {ModuleSpec{100, 100}, ModuleSpec{10, 100}, ModuleSpec{20, 50}});
     int stock = 1000;
     float debt = 0;
     Repaired r = pulse(d.modules, stock, debt);
-    REQUIRE(g_incHealth.size() == 2);  // модуль №0 целый
+    REQUIRE(g_incHealth.size() == 2);  // module #0 is intact
     CHECK(g_incHealth[0].index == 1u);
     CHECK(g_incHealth[1].index == 2u);
-    CHECK(moduleHp(d.modules, 1) == 12);  // +2% от 100
-    CHECK(moduleHp(d.modules, 2) == 21);  // +2% от 50 = 1
+    CHECK(moduleHp(d.modules, 1) == 12);  // +2% of 100
+    CHECK(moduleHp(d.modules, 2) == 21);  // +2% of 50 = 1
     CHECK(r.health == 3);
 }
 
-TEST_CASE_FIXTURE(Engine, "Броня: каждому изношенному слою +2% исходной толщины, 1 запчасть за 1 мм") {
-    // Подготовка: модуль цел; сторона 0 - слои 50 и 100 мм при исходных 100 и 100; сторона 5 - слой
-    // 99 из 100 мм.
+TEST_CASE_FIXTURE(Engine, "Armor: every worn layer gets +2% of its original thickness, 1 spare part per 1 mm") {
+    // Setup: the module is intact; side 0 - layers of 50 and 100 mm with originals of 100 and 100; side 5 -
+    // a layer of 99 of 100 mm.
     ModuleSpec m;
     m.armor[0] = {50, 100};
     m.armorFull[0] = {100, 100};
@@ -587,19 +588,19 @@ TEST_CASE_FIXTURE(Engine, "Броня: каждому изношенному с�
 
     Repaired r = pulse(d.modules, stock, debt);
 
-    // Ожидаем: 50 -> 52 (+2% от 100); целый слой не тронут; 99 -> 100 (не выше исходной).
+    // Expected: 50 -> 52 (+2% of 100); the intact layer untouched; 99 -> 100 (not above the original).
     CHECK(armorAt(d.modules, 0, 0, 0) == 52.0f);
     CHECK(armorAt(d.modules, 0, 0, 1) == 100.0f);
     CHECK(armorAt(d.modules, 0, 5, 0) == 100.0f);
     CHECK(r.layers == 2);
-    // Цена: 2 мм + 1 мм = 3 запчасти.
+    // Price: 2 mm + 1 mm = 3 spare parts.
     CHECK(r.spent == 3);
     CHECK(stock == 997);
-    CHECK(g_incHealth.empty());  // здоровье модуля полное
+    CHECK(g_incHealth.empty());  // the module's health is full
 }
 
-TEST_CASE_FIXTURE(Engine, "Броня: дробная цена копится в долге") {
-    // Слой с исходной толщиной 25 мм: +0.5 мм за импульс - 0.5 запчасти.
+TEST_CASE_FIXTURE(Engine, "Armor: a fractional price accumulates as debt") {
+    // A layer with an original thickness of 25 mm: +0.5 mm per pulse - 0.5 spare parts.
     ModuleSpec m;
     m.armor[0] = {10};
     m.armorFull[0] = {25};
@@ -608,16 +609,16 @@ TEST_CASE_FIXTURE(Engine, "Броня: дробная цена копится в
     float debt = 0;
     Repaired r = pulse(d.modules, stock, debt);
     CHECK(armorAt(d.modules, 0, 0, 0) == 10.5f);
-    CHECK(r.spent == 0);  // пока не списано ничего
+    CHECK(r.spent == 0);  // nothing taken yet
     CHECK(debt == doctest::Approx(0.5f));
     r = pulse(d.modules, stock, debt);
-    CHECK(r.spent == 1);  // второй импульс: 0.5 + 0.5 = 1 запчасть
+    CHECK(r.spent == 1);  // second pulse: 0.5 + 0.5 = 1 spare part
     CHECK(stock == 99);
 }
 
-TEST_CASE_FIXTURE(Engine, "Броня: слои с нулевой исходной толщиной и лишние текущие слои пропускаются") {
-    // Сторона 0: в текущей толщине 3 слоя, а в описании модуля - 2 (второй с толщиной 0). Берутся только
-    // слои, которые есть в обоих списках; слой с исходной толщиной 0 не чинится.
+TEST_CASE_FIXTURE(Engine, "Armor: layers with zero original thickness and extra current layers are skipped") {
+    // Side 0: the current thickness has 3 layers, but the module description has 2 (the second with thickness
+    // 0). Only layers present in both lists are used; a layer with original thickness 0 is not repaired.
     ModuleSpec m;
     m.armor[0] = {10, 0, 10};
     m.armorFull[0] = {100, 0};
@@ -627,11 +628,11 @@ TEST_CASE_FIXTURE(Engine, "Броня: слои с нулевой исходно
     Repaired r = pulse(d.modules, stock, debt);
     CHECK(armorAt(d.modules, 0, 0, 0) == 12.0f);
     CHECK(armorAt(d.modules, 0, 0, 1) == 0.0f);
-    CHECK(armorAt(d.modules, 0, 0, 2) == 10.0f);  // третьего слоя нет в описании - не тронут
+    CHECK(armorAt(d.modules, 0, 0, 2) == 10.0f);  // the third layer is not in the description - untouched
     CHECK(r.layers == 1);
 }
 
-TEST_CASE_FIXTURE(Engine, "Уничтоженная машина (общее здоровье 0) не чинится") {
+TEST_CASE_FIXTURE(Engine, "A destroyed vehicle (total health 0) is not repaired") {
     ModuleSpec m{0, 100};
     m.armor[0] = {10};
     m.armorFull[0] = {100};
@@ -646,7 +647,7 @@ TEST_CASE_FIXTURE(Engine, "Уничтоженная машина (общее з�
     CHECK(stock == 100);
 }
 
-TEST_CASE_FIXTURE(Engine, "Модуль без описания пропускается, следующий чинится") {
+TEST_CASE_FIXTURE(Engine, "A module without a description is skipped, the next one is repaired") {
     ModuleSpec broken{10, 100};
     broken.noDesc = true;
     Damaged d(1, {broken, ModuleSpec{10, 100}});
@@ -657,7 +658,7 @@ TEST_CASE_FIXTURE(Engine, "Модуль без описания пропуска
     CHECK(g_incHealth[0].index == 1u);
 }
 
-TEST_CASE_FIXTURE(Engine, "Склад кончился - следующие модули не чинятся") {
+TEST_CASE_FIXTURE(Engine, "Stock ran out - the following modules are not repaired") {
     Damaged d(1, {ModuleSpec{10, 100}, ModuleSpec{10, 100}});
     int stock = 2;
     float debt = 0;
@@ -667,9 +668,9 @@ TEST_CASE_FIXTURE(Engine, "Склад кончился - следующие мо
     CHECK(stock == 0);
 }
 
-TEST_CASE_FIXTURE(Engine, "Склад кончился посреди стороны - броня этой стороны дочинивается в долг") {
-    // ОСОБЕННОСТЬ: запас проверяется перед каждой стороной брони, а не перед каждым слоем. Поэтому слои
-    // начатой стороны чинятся до конца, а недостающая цена уходит в долг.
+TEST_CASE_FIXTURE(Engine, "Stock ran out in the middle of a side - that side's armor is finished on debt") {
+    // QUIRK: stock is checked before each armor side, not before each layer. So the layers of a side that was
+    // started are all repaired, and the missing price goes into debt.
     ModuleSpec m;
     m.armor[0] = {50, 50, 50};
     m.armorFull[0] = {100, 100, 100};
@@ -679,21 +680,21 @@ TEST_CASE_FIXTURE(Engine, "Склад кончился посреди сторо
     int stock = 1;
     float debt = 0;
     Repaired r = pulse(d.modules, stock, debt);
-    // Все 3 слоя стороны 0 выросли на 2 мм (цена 6), заплачена 1 запчасть, 5 - в долге.
+    // All 3 layers of side 0 grew by 2 mm (price 6), 1 spare part paid, 5 in debt.
     for (size_t k = 0; k < 3; ++k) CHECK(armorAt(d.modules, 0, 0, k) == 52.0f);
     CHECK(r.layers == 3);
     CHECK(r.spent == 1);
     CHECK(stock == 0);
     CHECK(debt == doctest::Approx(5.0f));
-    // Сторона 1 уже не тронута.
+    // Side 1 is no longer touched.
     CHECK(armorAt(d.modules, 0, 1, 0) == 50.0f);
 }
 
-// ================================================================ импульс ремонта по зоне
+// ================================================================ repair pulse over the zone
 
 namespace {
 
-// HEMTT Repair в режиме F4 с машинами в зоне.
+// HEMTT Repair in F4 mode with vehicles in the zone.
 struct RepairZone : Engine {
     Repair r;
     RepairZone() { turnOn(r.ammo, kAmmoOff); }
@@ -703,19 +704,19 @@ struct RepairZone : Engine {
 
 }  // namespace
 
-TEST_CASE_FIXTURE(RepairZone, "Импульс ремонта раз в 0.5 секунды") {
+TEST_CASE_FIXTURE(RepairZone, "A repair pulse every 0.5 seconds") {
     Damaged d;
     zone({&d.v.self});
 
-    tick(0.25f);  // первый кадр - сразу импульс
+    tick(0.25f);  // first frame - a pulse right away
     CHECK(moduleHp(d.modules, 0) == 52);
-    tick(0.25f);  // через 0.25 с - рано
+    tick(0.25f);  // 0.25 s later - too early
     CHECK(moduleHp(d.modules, 0) == 52);
-    tick(0.25f);  // через 0.5 с - следующий импульс
+    tick(0.25f);  // 0.5 s later - the next pulse
     CHECK(moduleHp(d.modules, 0) == 54);
 }
 
-TEST_CASE_FIXTURE(RepairZone, "Ремонт платит запчастями HEMTT Repair") {
+TEST_CASE_FIXTURE(RepairZone, "Repair is paid with HEMTT Repair's spare parts") {
     Damaged d;
     zone({&d.v.self});
     tick(0.1f);
@@ -723,9 +724,9 @@ TEST_CASE_FIXTURE(RepairZone, "Ремонт платит запчастями HE
     CHECK(sparesIn(d.modules) == 7);
 }
 
-TEST_CASE_FIXTURE(RepairZone, "Ремонт: свои и союзники - да, враги (отношение 2 или 4) - нет") {
-    // Подготовка: HEMTT Repair - команда 1. В зоне машины команд 1, 2, 3, 4, 5; отношения команд 3 и 4
-    // к команде 1 - «враги» (2 и 4), остальные - 0, 1, 3.
+TEST_CASE_FIXTURE(RepairZone, "Repair: own side and allies - yes, enemies (relation 2 or 4) - no") {
+    // Setup: HEMTT Repair is team 1. In the zone are vehicles of teams 1, 2, 3, 4, 5; teams 3 and 4 relate to
+    // team 1 as "enemies" (2 and 4), the others as 0, 1, 3.
     Damaged own(1), team2(2), enemyA(3), enemyB(4), team5(5);
     g_relations[{1, 1}] = 0;
     g_relations[{2, 1}] = 1;
@@ -741,15 +742,15 @@ TEST_CASE_FIXTURE(RepairZone, "Ремонт: свои и союзники - да
     CHECK(moduleHp(enemyA.modules, 0) == 50);
     CHECK(moduleHp(enemyB.modules, 0) == 50);
     CHECK(moduleHp(team5.modules, 0) == 52);
-    // Дипломатию спрашивали про (команда цели, команда HEMTT Repair), у мира самой HEMTT Repair.
+    // Diplomacy was asked about (target team, HEMTT Repair's team), from HEMTT Repair's own world.
     CHECK(g_relationAsks.front() == std::pair<int, int>{1, 1});
     CHECK(g_relationAsks[2] == std::pair<int, int>{3, 1});
     CHECK(g_diplomacyWorld == &g_world);
 }
 
-TEST_CASE_FIXTURE(RepairZone, "Ремонт: сама HEMTT Repair, машины без команды и без модулей пропускаются") {
-    // Подготовка: в зоне сама HEMTT Repair (повреждённая), машина без команды, пехотинец (нет модулей),
-    // пустая запись и обычная повреждённая машина.
+TEST_CASE_FIXTURE(RepairZone, "Repair: HEMTT Repair itself, vehicles without a team and without modules are skipped") {
+    // Setup: in the zone are HEMTT Repair itself (damaged), a vehicle without a team, an infantryman (no
+    // modules), an empty entry and an ordinary damaged vehicle.
     moduleHp(r.modules, 0) = 10;
     Damaged noTeam;
     noTeam.v.setTeam(nullptr);
@@ -760,12 +761,12 @@ TEST_CASE_FIXTURE(RepairZone, "Ремонт: сама HEMTT Repair, машины
 
     tick(0.1f);
 
-    CHECK(moduleHp(r.modules, 0) == 10);       // себя не чинит
-    CHECK(moduleHp(noTeam.modules, 0) == 50);  // без команды - нельзя
-    CHECK(moduleHp(ok.modules, 0) == 52);      // остальным это не мешает
+    CHECK(moduleHp(r.modules, 0) == 10);       // does not repair itself
+    CHECK(moduleHp(noTeam.modules, 0) == 50);  // no team - not allowed
+    CHECK(moduleHp(ok.modules, 0) == 52);      // this does not stop the others
 }
 
-TEST_CASE_FIXTURE(RepairZone, "Ремонт: у HEMTT Repair нет команды или в мире нет дипломатии - не чинит никого") {
+TEST_CASE_FIXTURE(RepairZone, "Repair: HEMTT Repair has no team or the world has no diplomacy - repairs nobody") {
     Damaged d;
     zone({&d.v.self});
     g_hasDiplomacy = false;
@@ -779,7 +780,7 @@ TEST_CASE_FIXTURE(RepairZone, "Ремонт: у HEMTT Repair нет команд
     CHECK(moduleHp(d.modules, 0) == 50);
 }
 
-TEST_CASE_FIXTURE(RepairZone, "Ремонт: склад пуст - ничего не происходит") {
+TEST_CASE_FIXTURE(RepairZone, "Repair: empty stock - nothing happens") {
     Damaged d;
     zone({&d.v.self});
     sparesIn(r.modules) = 0;
@@ -788,7 +789,7 @@ TEST_CASE_FIXTURE(RepairZone, "Ремонт: склад пуст - ничего 
     CHECK(g_incHealth.empty());
 }
 
-TEST_CASE_FIXTURE(RepairZone, "Ремонт: склад кончился во время импульса - остальные ждут, в логе об этом запись") {
+TEST_CASE_FIXTURE(RepairZone, "Repair: stock ran out during a pulse - the rest wait, and the log says so") {
     Damaged a, b;
     zone({&a.v.self, &b.v.self});
     sparesIn(r.modules) = 2;
@@ -800,8 +801,8 @@ TEST_CASE_FIXTURE(RepairZone, "Ремонт: склад кончился во в
     CHECK(log.has("repair: out of spare parts"));
 }
 
-TEST_CASE_FIXTURE(Engine, "Ремонт: долг за броню свой у каждой HEMTT Repair и переживает импульсы") {
-    // Две HEMTT Repair чинят по слою 25 мм (+0.5 мм = 0.5 запчасти за импульс).
+TEST_CASE_FIXTURE(Engine, "Repair: each HEMTT Repair has its own armor debt, and it survives between pulses") {
+    // Two HEMTT Repairs each repair a 25 mm layer (+0.5 mm = 0.5 spare parts per pulse).
     ModuleSpec m;
     m.armor[0] = {10};
     m.armorFull[0] = {25};
@@ -812,30 +813,30 @@ TEST_CASE_FIXTURE(Engine, "Ремонт: долг за броню свой у к
     r1.v.setTargets(r1.ammo, {&d1.v.self});
     r2.v.setTargets(r2.ammo, {&d2.v.self});
 
-    tickRepair(r1.ammo.p(), 0.5f);  // r1: долг 0.5
-    tickRepair(r2.ammo.p(), 0.5f);  // r2: долг 0.5
+    tickRepair(r1.ammo.p(), 0.5f);  // r1: debt 0.5
+    tickRepair(r2.ammo.p(), 0.5f);  // r2: debt 0.5
     CHECK(sparesIn(r1.modules) == 10000);
-    tickRepair(r1.ammo.p(), 0.5f);  // r1: 0.5 + 0.5 = 1 -> списана 1
+    tickRepair(r1.ammo.p(), 0.5f);  // r1: 0.5 + 0.5 = 1 -> 1 taken
     CHECK(sparesIn(r1.modules) == 9999);
-    CHECK(sparesIn(r2.modules) == 10000);  // у r2 долг свой, всё ещё 0.5
+    CHECK(sparesIn(r2.modules) == 10000);  // r2 has its own debt, still 0.5
     CHECK(g_armorDebt[r2.ammo.p()] == doctest::Approx(0.5f));
 }
 
-TEST_CASE_FIXTURE(RepairZone, "Ремонт через режим F4: update боеприпасов HEMTT Repair делает импульс") {
+TEST_CASE_FIXTURE(RepairZone, "Repair through F4 mode: HEMTT Repair's ammo update makes the pulse") {
     Damaged d;
     zone({&d.v.self});
     circleField(r.ammo) = newCircle();
     hookAmmoUpdate(r.ammo.p(), 0.1f);
-    CHECK(callNames() == std::vector<std::string>{"ammo.update"});  // оригинал - первым
+    CHECK(callNames() == std::vector<std::string>{"ammo.update"});  // the original goes first
     CHECK(moduleHp(d.modules, 0) == 52);
-    REQUIRE(g_draws.size() == 1);  // и круг ремонта
+    REQUIRE(g_draws.size() == 1);  // and the repair circle
     CHECK(g_draws[0].material == "materials/rounds/repairRecharge.material");
 }
 
-// ================================================================ лог
+// ================================================================ log
 
-TEST_CASE_FIXTURE(RepairZone, "Лог ремонта: что сделано и сколько потрачено; не больше 40 строк") {
-    Damaged d(1, {ModuleSpec{0, 1000}, ModuleSpec{100, 100}});  // общее здоровье 100
+TEST_CASE_FIXTURE(RepairZone, "Repair log: what was done and what it cost; at most 40 lines") {
+    Damaged d(1, {ModuleSpec{0, 1000}, ModuleSpec{100, 100}});  // total health 100
     zone({&d.v.self});
     LogTail log(logFile());
     tick(0.5f);
@@ -847,7 +848,7 @@ TEST_CASE_FIXTURE(RepairZone, "Лог ремонта: что сделано и �
     CHECK(log.count("repair: target=") == 40);
 }
 
-TEST_CASE_FIXTURE(Engine, "Лог событий: не больше 50 за запуск") {
+TEST_CASE_FIXTURE(Engine, "Event log: at most 50 per run") {
     Spares s;
     LogTail log(logFile());
     for (int i = 0; i < 60; ++i) trace("test event", s.ammo.p());

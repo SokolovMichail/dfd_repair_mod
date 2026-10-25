@@ -12,7 +12,7 @@ set(MOD_VERSION "0.1")
 set(GAME_DIR "C:/Games/Terminator Dark Fate - Defiance" CACHE PATH "Папка игры (файлы для сборки мода, deploy)")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-# Общие настройки сборки (DLL и тесты): без зависимостей от рантайма MinGW (libstdc++/libgcc/winpthread).
+# Common build settings for the mod DLLs: no dependency on the MinGW runtime (libstdc++/libgcc/winpthread).
 function(dfd_flags target)
     target_compile_definitions(${target} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wno-cast-function-type -mcrtdll=ucrt)
@@ -20,7 +20,7 @@ function(dfd_flags target)
     target_link_options(${target} PRIVATE -static -mcrtdll=ucrt $<$<CONFIG:Release>:-s>)
 endfunction()
 
-# DLL мода: общие настройки + имя без префикса lib.
+# A mod DLL: common settings + a name without the lib prefix.
 function(dfd_dll target)
     set_target_properties(${target} PROPERTIES PREFIX "")
     dfd_flags(${target})
@@ -82,8 +82,8 @@ if (NOT DFD_NESTED_RELEASE)
             USES_TERMINAL VERBATIM)
 endif ()
 
-# ---- тесты плагина (tests/): cmake --build <build> && ctest --test-dir <build>
-option(DFD_TESTS "Собирать тесты плагина SparesSupply" ON)
+# ---- plugin tests (tests/): cmake --build <build> && ctest --test-dir <build>
+option(DFD_TESTS "Build the SparesSupply plugin tests" ON)
 if (DFD_TESTS AND NOT DFD_NESTED_RELEASE)
     enable_testing()
     add_subdirectory(tests)

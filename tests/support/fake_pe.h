@@ -1,16 +1,16 @@
-// Поддельный загруженный модуль (PE-образ) для тестов.
+// A fake loaded module (PE image) for tests.
 //
-// Зачем. Плагин не знает заранее, где в logic.dll лежат нужные ему функции и таблицы: он ищет их при
-// загрузке игры - по характерным последовательностям байтов кода («шаблонам») и по именам классов,
-// которые компилятор оставляет в файле (RTTI). Чтобы проверить этот поиск без игры, мы строим в памяти
-// маленький «файл», устроенный как настоящая DLL: заголовок и три раздела - код (.text), константы (.rdata)
-// и данные (.data). В него можно положить любые байты и «классы», а потом натравить на него код плагина.
+// Why. The plugin does not know in advance where the functions and tables it needs live in logic.dll: it
+// searches for them when the game loads - by characteristic byte sequences of code ("patterns") and by
+// class names the compiler leaves in the file (RTTI). To test that search without the game, we build a
+// small "file" in memory laid out like a real DLL: headers and three sections - code (.text), constants
+// (.rdata) and data (.data). Any bytes and "classes" can be put into it, and then the plugin code is run on it.
 //
-// Раскладка (смещения от начала образа, как в настоящей DLL после загрузки):
-//   0x00000  заголовки (DOS + PE + описания разделов)
-//   0x01000  .text   - «код»; свободное место заполнено байтом CC (int3), который не похож ни на один шаблон
-//   0x11000  .rdata  - константы, строки, vtable (таблицы методов классов)
-//   0x19000  .data   - данные, в том числе имена классов RTTI
+// Layout (offsets from the image start, as in a real DLL after loading):
+//   0x00000  headers (DOS + PE + section headers)
+//   0x01000  .text   - "code"; free space is filled with CC (int3), which matches none of the patterns
+//   0x11000  .rdata  - constants, strings, vtables (class method tables)
+//   0x19000  .data   - data, including RTTI class names
 #pragma once
 
 #include <windows.h>
@@ -24,8 +24,8 @@
 
 namespace fake {
 
-// Текст шаблона в байты: "48 8B ?? 05" -> {48, 8B, 00, 05}. На месте ?? ставится 0 - тест потом сам
-// впишет туда нужное смещение (как это сделал бы компилятор).
+// Pattern text to bytes: "48 8B ?? 05" -> {48, 8B, 00, 05}. A ?? becomes 0 - the test then writes the
+// needed offset there itself (as the compiler would have).
 inline std::vector<uint8_t> hex(const char* s) {
     std::vector<uint8_t> out;
     while (*s) {
@@ -42,7 +42,7 @@ inline std::vector<uint8_t> hex(const char* s) {
     return out;
 }
 
-// Байты числа (float, указатель и т.п.) - чтобы положить его в образ.
+// The bytes of a value (float, pointer, ...) - to put it into the image.
 template <class T>
 std::vector<uint8_t> bytesOf(const T& v) {
     std::vector<uint8_t> b(sizeof(T));
@@ -58,7 +58,7 @@ public:
     static constexpr uint32_t kImageSize = 0x21000;
     static constexpr uint32_t kTimeDateStamp = 0x12345678;
 
-    // Раздел образа: границы и «курсор» - куда положить следующие байты.
+    // An image section: its bounds and a "cursor" - where to put the next bytes.
     struct Sec {
         uintptr_t begin, end, cur;
     };
@@ -72,8 +72,8 @@ public:
         rdata = {base_ + kRdata, base_ + kRdata + kRdataSize, base_ + kRdata};
         data = {base_ + kData, base_ + kData + kDataSize, base_ + kData};
 
-        // Заголовки: ровно то, что читает dfd::Image - адрес PE-заголовка, число и описания разделов,
-        // метка времени и размер образа.
+        // Headers: exactly what dfd::Image reads - where the PE header is, the number and descriptions of
+        // the sections, the timestamp and the image size.
         auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base_);
         dos->e_magic = IMAGE_DOS_SIGNATURE;
         dos->e_lfanew = 0x80;
@@ -97,7 +97,7 @@ public:
     uintptr_t base() const { return base_; }
     uint32_t rva(uintptr_t a) const { return static_cast<uint32_t>(a - base_); }
 
-    // Положить байты в раздел (по курсору, с выравниванием align) и вернуть их адрес.
+    // Put bytes into a section (at the cursor, aligned to `align`) and return their address.
     uintptr_t put(Sec& s, const std::vector<uint8_t>& b, size_t align = 16) {
         s.cur = (s.cur + align - 1) / align * align;
         if (s.cur + b.size() > s.end) throw std::runtime_error("fake PE section is full");
@@ -107,30 +107,30 @@ public:
         return at;
     }
     uintptr_t put(Sec& s, const char* pattern, size_t align = 16) { return put(s, hex(pattern), align); }
-    // Строка с завершающим нулём.
+    // A string with its terminating zero.
     uintptr_t putString(Sec& s, const char* str) {
         return put(s, std::vector<uint8_t>(str, str + strlen(str) + 1), 1);
     }
 
-    // Записать байты по адресу (подделать/испортить уже положенное).
+    // Write bytes at an address (to fake or spoil something already placed).
     static void write(uintptr_t at, const std::vector<uint8_t>& b) {
         memcpy(reinterpret_cast<void*>(at), b.data(), b.size());
     }
-    // Вписать в инструкцию insn длиной len rip-относительное смещение (4 байта по смещению dispAt) так,
-    // чтобы инструкция указывала на target. Так процессор (и Image::ripTarget) считает адрес:
-    // конец инструкции + смещение.
+    // Write a rip-relative offset (4 bytes at offset dispAt) into instruction insn of length len, so that the
+    // instruction points to target. That is how the CPU (and Image::ripTarget) computes the address:
+    // end of instruction + offset.
     static void aim(uintptr_t insn, size_t dispAt, size_t len, uintptr_t target) {
         int32_t d = static_cast<int32_t>(static_cast<intptr_t>(target) - static_cast<intptr_t>(insn + len));
         memcpy(reinterpret_cast<void*>(insn + dispAt), &d, 4);
     }
 
-    // Класс с RTTI, как его оставляет компилятор MSVC, и его vtable на slots методов (пока пустых).
-    //   .data:  TypeDescriptor - 16 байт служебных полей и имя ".?AV<cls>@@"
-    //   .rdata: CompleteObjectLocator (COL) - 6 чисел: подпись 1, offset (0 - основная vtable), ...,
-    //           RVA TypeDescriptor, ..., RVA самого COL
-    //   .rdata: указатель на COL, сразу за ним - vtable
-    // colOffset != 0 или badSelf - «неправильный» COL, который Image::vtableOf должен пропустить.
-    // Возвращает адрес vtable. Адрес имени (для порчи в тестах) - в *nameAt.
+    // A class with RTTI, as MSVC leaves it, and its vtable with `slots` methods (empty for now).
+    //   .data:  TypeDescriptor - 16 bytes of service fields and the name ".?AV<cls>@@"
+    //   .rdata: CompleteObjectLocator (COL) - 6 numbers: signature 1, offset (0 - the primary vtable), ...,
+    //           RVA of the TypeDescriptor, ..., RVA of the COL itself
+    //   .rdata: a pointer to the COL, directly followed by the vtable
+    // colOffset != 0 or badSelf - a "wrong" COL that Image::vtableOf must skip.
+    // Returns the vtable address. The name's address (for spoiling it in tests) goes to *nameAt.
     uintptr_t addClass(const char* cls, int slots, uint32_t colOffset = 0, bool badSelf = false,
                        uintptr_t* nameAt = nullptr) {
         std::string name = std::string(".?AV") + cls + "@@";
@@ -146,12 +146,12 @@ public:
         vt.resize(8 + 8 * slots, 0);
         return put(rdata, vt, 8) + 8;
     }
-    // Записать в слот vtable адрес «функции».
+    // Write the address of a "function" into a vtable slot.
     static void setSlot(uintptr_t vtable, int slot, uintptr_t fn) {
         *reinterpret_cast<uintptr_t*>(vtable + 8 * slot) = fn;
     }
 
-    // Копия всего образа - чтобы потом проверить, что в нём ничего (или только ожидаемое) не изменилось.
+    // A copy of the whole image - to check later that nothing (or only what was expected) changed.
     std::vector<uint8_t> snapshot() const {
         auto p = reinterpret_cast<const uint8_t*>(base_);
         return std::vector<uint8_t>(p, p + kImageSize);

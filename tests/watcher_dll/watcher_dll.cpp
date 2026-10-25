@@ -1,5 +1,5 @@
-// Пустая DLL для теста DllWatcher (patch_h_test): тест сначала подписывается на её загрузку, потом
-// загружает её сам и проверяет, что уведомление пришло ровно один раз и с правильным адресом.
+// An empty DLL for the DllWatcher test (patch_h_test): the test first subscribes to its load, then loads it
+// itself and checks that the notification arrived exactly once and with the right address.
 #include <windows.h>
 
 extern "C" __declspec(dllexport) int dfd_watcher_test_marker() { return 42; }

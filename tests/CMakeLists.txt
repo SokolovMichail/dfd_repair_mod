@@ -1,15 +1,15 @@
-# Тесты плагина SparesSupply. Игра для них не нужна: вместо logic.dll и объектов движка - подделки
-# (tests/support), построенные по тем же предположениям, что зашиты в плагин. Поэтому обновление игры
-# тесты не ломает: они проверяют, что плагин ведёт себя как прежде, а не что игра не изменилась.
+# Tests of the SparesSupply plugin. They do not need the game: logic.dll and engine objects are replaced by
+# fakes (tests/support) built from the same assumptions the plugin is built on. So a game update does not
+# break the tests: they check that the plugin behaves as before, not that the game has not changed.
 #
-#   patch_h_test         - общий код плагинов common/patch.h (поиск по шаблонам, RTTI, набор правок, лог)
-#   plugin_test          - поведение перехватов: режим F4, круг зоны, ремонт и броня, оплата запчастями
-#   plugin_install_test  - поиск адресов и установка правок в поддельной logic.dll («всё или ничего»)
+#   patch_h_test         - shared plugin code common/patch.h (pattern search, RTTI, patch set, log)
+#   plugin_test          - hook behaviour: F4 mode, zone circle, repair and armor, paying with spare parts
+#   plugin_install_test  - finding addresses and applying patches in a fake logic.dll ("all or nothing")
 
-# Тест - обычная программа на doctest; запускается CTest. Собирается не как DLL мода (-static
-# -mcrtdll=ucrt): в этом MinGW libstdc++.a собрана под msvcrt, а libwinpthread.a - под UCRT, и потоки
-# ввода-вывода, которыми пользуется doctest, так не линкуются. Поэтому libstdc++/libgcc - статически,
-# а libwinpthread-1.dll копируется к тестам из папки компилятора.
+# A test is an ordinary doctest program run by CTest. It is not built like the mod DLLs (-static
+# -mcrtdll=ucrt): in this MinGW libstdc++.a is built for msvcrt and libwinpthread.a for UCRT, and the I/O
+# streams doctest uses do not link that way. So libstdc++/libgcc are linked statically, and
+# libwinpthread-1.dll is copied next to the tests from the compiler folder.
 get_filename_component(DFD_MINGW_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
 function(dfd_test name)
     add_executable(${name} ${ARGN})
@@ -25,7 +25,7 @@ function(dfd_test name)
     add_test(NAME ${name} COMMAND ${name} WORKING_DIRECTORY "$<TARGET_FILE_DIR:${name}>")
 endfunction()
 
-# Маленькая DLL, которую тест DllWatcher загружает сам, чтобы увидеть уведомление о загрузке.
+# A tiny DLL the DllWatcher test loads itself to see the load notification.
 add_library(dfd_watcher_test SHARED watcher_dll/watcher_dll.cpp)
 dfd_dll(dfd_watcher_test)
 
