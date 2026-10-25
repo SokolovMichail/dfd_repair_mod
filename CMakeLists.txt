@@ -12,13 +12,18 @@ set(MOD_VERSION "0.1")
 set(GAME_DIR "C:/Games/Terminator Dark Fate - Defiance" CACHE PATH "Папка игры (файлы для сборки мода, deploy)")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-# Общие настройки DLL: без префикса lib, без зависимостей от рантайма MinGW (libstdc++/libgcc/winpthread).
-function(dfd_dll target)
-    set_target_properties(${target} PROPERTIES PREFIX "")
+# Общие настройки сборки (DLL и тесты): без зависимостей от рантайма MinGW (libstdc++/libgcc/winpthread).
+function(dfd_flags target)
     target_compile_definitions(${target} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wno-cast-function-type -mcrtdll=ucrt)
     # Всё статически; CRT - системный UCRT (статическая libwinpthread этого MinGW собрана под UCRT).
     target_link_options(${target} PRIVATE -static -mcrtdll=ucrt $<$<CONFIG:Release>:-s>)
+endfunction()
+
+# DLL мода: общие настройки + имя без префикса lib.
+function(dfd_dll target)
+    set_target_properties(${target} PROPERTIES PREFIX "")
+    dfd_flags(${target})
 endfunction()
 
 # ---- winhttp.dll: прокси + загрузчик плагинов (bin\winhttp.dll)
@@ -75,4 +80,11 @@ if (NOT DFD_NESTED_RELEASE)
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
             COMMENT "Release HEMTT Spares ${MOD_VERSION} -> dist/"
             USES_TERMINAL VERBATIM)
+endif ()
+
+# ---- тесты плагина (tests/): cmake --build <build> && ctest --test-dir <build>
+option(DFD_TESTS "Собирать тесты плагина SparesSupply" ON)
+if (DFD_TESTS AND NOT DFD_NESTED_RELEASE)
+    enable_testing()
+    add_subdirectory(tests)
 endif ()
