@@ -73,12 +73,12 @@ public:
         data = {base_ + kData, base_ + kData + kDataSize, base_ + kData};
 
         // Headers: exactly what dfd::Image reads - where the PE header is, the number and descriptions of
-        // the sections, the timestamp and the image size.
+        // the sections, the timestamp and the image size. The "MZ" and "PE" signatures are deliberately left
+        // out: Image never checks them, and an in-memory image carrying them looks like a manually loaded DLL
+        // to antivirus heuristics (Kaspersky flagged the tests as a trojan).
         auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base_);
-        dos->e_magic = IMAGE_DOS_SIGNATURE;
         dos->e_lfanew = 0x80;
         auto nt = reinterpret_cast<IMAGE_NT_HEADERS64*>(base_ + 0x80);
-        nt->Signature = IMAGE_NT_SIGNATURE;
         nt->FileHeader.Machine = IMAGE_FILE_MACHINE_AMD64;
         nt->FileHeader.NumberOfSections = 3;
         nt->FileHeader.TimeDateStamp = kTimeDateStamp;
