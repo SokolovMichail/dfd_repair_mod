@@ -33,5 +33,5 @@ dfd_test(patch_h_test patch_h_test.cpp)
 add_dependencies(patch_h_test dfd_watcher_test)
 target_compile_definitions(patch_h_test PRIVATE "WATCHER_DLL_NAME=\"$<TARGET_FILE_NAME:dfd_watcher_test>\"")
 
-dfd_test(plugin_test plugin_test.cpp)
-dfd_test(plugin_install_test plugin_install_test.cpp)
+dfd_test(plugin_test plugin_test.cpp ${SPARES_SUPPLY_SOURCES})
+dfd_test(plugin_install_test plugin_install_test.cpp ${SPARES_SUPPLY_SOURCES})

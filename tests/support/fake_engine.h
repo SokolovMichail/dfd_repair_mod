@@ -7,13 +7,9 @@
 // plugin and in docs/engine_notes.md. Every fake records what was done to it, and the test then checks
 // that record.
 //
-// Include AFTER spares_supply.cpp: it uses the plugin's types (RefBlock, MsvcString) and globals
-// (g_a - the addresses found, g_orig* - the original game functions).
+// It uses the plugin's types (RefBlock, MsvcString) and globals (g_a - the addresses found, g_orig* - the
+// original game functions).
 #pragma once
-
-// The fakes below use types from the plugin's anonymous namespace (RefBlock). That is fine for tests,
-// so the compiler warning about it is turned off.
-#pragma GCC diagnostic ignored "-Wsubobject-linkage"
 
 #include <array>
 #include <cstdint>
@@ -24,7 +20,13 @@
 #include <utility>
 #include <vector>
 
+#include "../../plugins/spares_supply/common.h"
+#include "../../plugins/spares_supply/repair.h"
+#include "../../plugins/spares_supply/spares.h"
+
 namespace fake {
+
+using namespace spares_supply;
 
 // ---------------------------------------------------------------- call journal
 

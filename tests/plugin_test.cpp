@@ -9,9 +9,9 @@
 // it usually calls the original too). Here the hooks are called directly - the way the game would call
 // them - on fake vehicles (support/fake_engine.h), and the test checks what they did.
 //
-// The plugin code is included here whole (#include .cpp) so the test can see its internal functions. If the
-// refactoring moves or renames them, only the include and the fakes need to change - the checks themselves
-// describe the behaviour and should stay as they are.
+// The plugin's headers declare its internal functions and state, and its sources are compiled into this test
+// program (tests/CMakeLists.txt). If a refactoring moves or renames them, only the includes and the fakes need
+// to change - the checks themselves describe the behaviour and should stay as they are.
 //
 // "QUIRK:" marks behaviour that looks odd but is how things work today. The test pins it so the refactoring
 // does not change it unnoticed; change it deliberately, together with the test.
@@ -19,11 +19,14 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
-#include "../plugins/spares_supply/spares_supply.cpp"
+#include "../plugins/spares_supply/common.h"
+#include "../plugins/spares_supply/repair.h"
+#include "../plugins/spares_supply/spares.h"
 #include "support/fake_engine.h"
 #include "support/log_file.h"
 
 using namespace fake;
+using namespace spares_supply;
 
 namespace {
 
