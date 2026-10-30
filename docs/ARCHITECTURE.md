@@ -108,10 +108,24 @@
 
 ## 5. Плагин `SparesSupply.dll` — [`plugins/spares_supply/`](../plugins/spares_supply/)
 
-Три пары файлов, собираются в одну DLL: [`common.h`/`.cpp`](../plugins/spares_supply/common.h) — модель объектов
-движка, режим F4 на компоненте боеприпасов, круг зоны, поиск адресов и установка правок (5.4), `DllMain`;
-[`spares.h`/`.cpp`](../plugins/spares_supply/spares.h) — HEMTT Spares; [`repair.h`/`.cpp`](../plugins/spares_supply/repair.h) —
-HEMTT Repair (5.6).
+Две части, собираются в одну DLL:
+
+- [`core/`](../plugins/spares_supply/core/) — **правила мода**, не зависящие от игры: ни `windows.h`, ни адресов, ни
+  объектов движка. [`supply.h`](../plugins/spares_supply/core/supply.h) — общие правила режима F4 (что делать при
+  включении, каждый кадр и при выключении, какой круг, кто раздаёт патроны);
+  [`spares.h`](../plugins/spares_supply/core/spares.h) — HEMTT Spares; [`repair.h`](../plugins/spares_supply/core/repair.h) —
+  HEMTT Repair: импульс ремонта, цена и долг, кого можно чинить (5.6). С игрой ядро говорит только через
+  интерфейсы-«порты» (`SupplyPort`, `SparesPort`, `RepairPort`, `Modules`), машины для него — непрозрачные ручки.
+- [`logic_dll/`](../plugins/spares_supply/logic_dll/) — **привязка к нынешней `logic.dll`**: реализует порты через
+  реверс. [`common.h`/`.cpp`](../plugins/spares_supply/logic_dll/common.h) — модель объектов движка, перехваты
+  боеприпасов, круг зоны, поиск адресов и установка правок (5.4), `DllMain`;
+  [`spares.h`/`.cpp`](../plugins/spares_supply/logic_dll/spares.h) и [`repair.h`/`.cpp`](../plugins/spares_supply/logic_dll/repair.h) —
+  перехваты и порты HEMTT Spares и HEMTT Repair: смещения полей, подмена круга, возврат запчастей цели после
+  `incHealth` и прочие обходы недоделок движка.
+
+Перехваты в `logic_dll/` тонкие: вызвать оригинал игры и передать событие ядру (`core::onSupplyOn/Off/Tick`).
+Если появится официальный API для модов, рядом с `logic_dll/` встанет новая привязка с теми же портами, а
+ядро и его тесты (`tests/core_test.cpp`) не изменятся.
 
 ### 5.1 Модель объектов движка, которой пользуется плагин
 

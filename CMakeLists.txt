@@ -34,11 +34,16 @@ add_library(winhttp SHARED
 dfd_dll(winhttp)
 
 # ---- плагины (bin\plugins\*.dll)
-# Plugin sources - shared by the DLL and the tests (tests/).
-set(SPARES_SUPPLY_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/common.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/spares.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/repair.cpp")
+# Plugin sources - shared by the DLL and the tests (tests/). core/ - the game-agnostic rules (no Windows, no
+# logic.dll), logic_dll/ - the binding to the current game build.
+set(SPARES_SUPPLY_CORE_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/core/repair.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/core/spares.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/core/supply.cpp")
+set(SPARES_SUPPLY_SOURCES ${SPARES_SUPPLY_CORE_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/common.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/spares.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/repair.cpp")
 add_library(SparesSupply SHARED ${SPARES_SUPPLY_SOURCES})
 dfd_dll(SparesSupply)
 target_compile_definitions(SparesSupply PRIVATE "SPARES_SUPPLY_VERSION=\"${MOD_VERSION}\"")

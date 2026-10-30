@@ -5,6 +5,7 @@
 #   patch_h_test         - shared plugin code common/patch.h (pattern search, RTTI, patch set, log)
 #   plugin_test          - hook behaviour: F4 mode, zone circle, repair and armor, paying with spare parts
 #   plugin_install_test  - finding addresses and applying patches in a fake logic.dll ("all or nothing")
+#   core_test            - the game-agnostic rules (plugins/spares_supply/core) through plain test ports
 
 # A test is an ordinary doctest program run by CTest. It is not built like the mod DLLs (-static
 # -mcrtdll=ucrt): in this MinGW libstdc++.a is built for msvcrt and libwinpthread.a for UCRT, and the I/O
@@ -35,3 +36,12 @@ target_compile_definitions(patch_h_test PRIVATE "WATCHER_DLL_NAME=\"$<TARGET_FIL
 
 dfd_test(plugin_test plugin_test.cpp ${SPARES_SUPPLY_SOURCES})
 dfd_test(plugin_install_test plugin_install_test.cpp ${SPARES_SUPPLY_SOURCES})
+
+# The core, built on its own with <windows.h> switched off (its include guards defined up front): if the core
+# ever starts depending on Windows or on logic.dll, this library stops compiling. doctest itself needs
+# Windows, so the guard applies to the core sources only, not to core_test.cpp.
+add_library(spares_supply_core_checked STATIC ${SPARES_SUPPLY_CORE_SOURCES})
+target_compile_definitions(spares_supply_core_checked PRIVATE _WINDOWS_ _INC_WINDOWS)
+target_compile_options(spares_supply_core_checked PRIVATE -Wall -Wextra)
+dfd_test(core_test core_test.cpp)
+target_link_libraries(core_test PRIVATE spares_supply_core_checked)
