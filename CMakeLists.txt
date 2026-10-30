@@ -71,7 +71,12 @@ add_custom_target(mod
         USES_TERMINAL VERBATIM)
 
 # ---- deploy: поставить в игру DLL и мод (игра должна быть закрыта)
+# deploy и deploy_defiance ставят одну из двух версий мода и убирают из игры другую (только её файлы: сам
+# DefianceLoader, bin\winhttp.dll и чужие плагины не трогаются), так что между ними можно переключаться для
+# проверки. Обе сразу не нужны: тогда плагин DefianceLoader отказывается работать.
 add_custom_target(deploy
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/DefianceLoader/plugins/spares_repair.dll"
+                "${GAME_DIR}/DefianceLoader/plugins/spares_repair.plugin.json"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/bin/plugins"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:winhttp> "${GAME_DIR}/bin/"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:SparesSupply> "${GAME_DIR}/bin/plugins/"
@@ -81,9 +86,10 @@ add_custom_target(deploy
         COMMENT "Install DLLs and mod into ${GAME_DIR}"
         VERBATIM)
 
-# ---- deploy_defiance: the same, but as a DefianceLoader plugin (DefianceLoader must be installed). Use one of
-# deploy / deploy_defiance: with both installed, the DefianceLoader plugin refuses to start.
+# ---- deploy_defiance: the same, but as a DefianceLoader plugin (DefianceLoader must be installed). Removes the
+# standalone plugin bin\plugins\SparesSupply.dll; bin\winhttp.dll stays (without plugins it only forwards calls).
 add_custom_target(deploy_defiance
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SparesSupply.dll"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/DefianceLoader/plugins"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:spares_repair>
                 "${CMAKE_CURRENT_BINARY_DIR}/spares_repair.plugin.json" "${GAME_DIR}/DefianceLoader/plugins/"

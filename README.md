@@ -45,7 +45,8 @@
 CMakeLists.txt         цели сборки (см. ниже), версия мода MOD_VERSION
 .env.example           шаблон локальных настроек -> скопировать в .env
 .run/                  готовые конфигурации запуска CLion: Build release / Deploy to game / Build mod data,
-                       Build release (DefianceLoader) / Deploy to game (DefianceLoader)
+                       Build release (DefianceLoader) / Deploy to game (DefianceLoader),
+                       Build SparesSupply (standalone) / Build spares_repair (DefianceLoader)
 common/patch.h         общее для плагинов: лог, поиск по шаблонам и RTTI, набор правок, ожидание загрузки DLL
 loader/                winhttp.dll: прокси системной winhttp.dll + загрузчик bin\plugins\*.dll
 plugins/spares_supply/ SparesSupply.dll (отдельно) и spares_repair.dll (плагин DefianceLoader) - из одних исходников:
@@ -89,8 +90,8 @@ dist/                  результат «собрать релиз» (в git 
 | `winhttp`, `SparesSupply` | DLL (профиль CLion, обычно Debug). |
 | `spares_repair` | Тот же плагин для DefianceLoader: `spares_repair.dll` + `spares_repair.plugin.json` в папке сборки. |
 | `mod` | Собирает данные мода в `<build>/stage/mods/HEMTT_Spares`. Файлы игры каждый раз берутся заново — после обновления игры достаточно пересобрать. |
-| `deploy` | Ставит в игру: `bin\winhttp.dll`, `bin\plugins\SparesSupply.dll`, `mods\HEMTT_Spares`. Игра должна быть закрыта; мод нужно один раз включить в меню MODS. |
-| `deploy_defiance` | То же для DefianceLoader: `DefianceLoader\plugins\spares_repair.dll` + манифест, `mods\HEMTT_Spares`. Ставить что-то одно — `deploy` или `deploy_defiance` (см. «DefianceLoader»). |
+| `deploy` | Ставит в игру: `bin\winhttp.dll`, `bin\plugins\SparesSupply.dll`, `mods\HEMTT_Spares`. Убирает плагин DefianceLoader-версии (`DefianceLoader\plugins\spares_repair.*`), если он там был. Игра должна быть закрыта; мод нужно один раз включить в меню MODS. |
+| `deploy_defiance` | То же для DefianceLoader: `DefianceLoader\plugins\spares_repair.dll` + манифест, `mods\HEMTT_Spares`; убирает `bin\plugins\SparesSupply.dll` (`bin\winhttp.dll`, сам DefianceLoader и чужие плагины остаются). Так `deploy` / `deploy_defiance` переключают игру между двумя версиями мода — удобно для проверки (см. «DefianceLoader»). |
 | `release` | **Собрать релиз**: отдельная Release-сборка DLL (оптимизация, без отладочной информации) + данные мода + `dist/HEMTT_Spares_v<версия>.zip`, `dist/HEMTT_Spares_v<версия>_cover.png` (1920×1080) и `_banner.png` (1300×372). |
 | `release_defiance` | То же для DefianceLoader: `dist/HEMTT_Spares_DefianceLoader_v<версия>.zip` (`DefianceLoader/plugins/spares_repair.dll` + манифест, `mods/HEMTT_Spares`); обложка и превью — общие с `release`. Упаковка — `mod/package.py --defiance`; README игрока — тот же `docs/Dist-readme.md`, блоки `{IF STANDALONE}` / `{IF DEFIANCE}` попадают только в свой архив. |
 
