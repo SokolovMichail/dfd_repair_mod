@@ -5,6 +5,7 @@
 #   patch_h_test         - shared plugin code common/patch.h (pattern search, RTTI, patch set, log)
 #   plugin_test          - hook behaviour: F4 mode, zone circle, repair and armor, paying with spare parts
 #   plugin_install_test  - finding addresses and applying patches in a fake logic.dll ("all or nothing")
+#   plugin_defiance_test - the DefianceLoader plugin (spares_repair.dll): the writes it asks a fake loader for
 #   core_test            - the game-agnostic rules (plugins/spares_supply/core) through plain test ports
 
 # A test is an ordinary doctest program run by CTest. It is not built like the mod DLLs (-static
@@ -36,6 +37,13 @@ target_compile_definitions(patch_h_test PRIVATE "WATCHER_DLL_NAME=\"$<TARGET_FIL
 
 dfd_test(plugin_test plugin_test.cpp ${SPARES_SUPPLY_SOURCES})
 dfd_test(plugin_install_test plugin_install_test.cpp ${SPARES_SUPPLY_SOURCES})
+
+# Built like spares_repair.dll (same version string), and told where its generated manifest is, so the test
+# sees a mismatch between the two the way the loader would.
+dfd_test(plugin_defiance_test plugin_defiance_test.cpp ${SPARES_SUPPLY_SOURCES}
+        "${CMAKE_SOURCE_DIR}/plugins/spares_supply/logic_dll/defiance.cpp")
+target_compile_definitions(plugin_defiance_test PRIVATE "SPARES_SUPPLY_VERSION=\"${MOD_VERSION}\""
+        "SPARES_REPAIR_MANIFEST=\"${CMAKE_BINARY_DIR}/spares_repair.plugin.json\"")
 
 # The core, built on its own with <windows.h> switched off (its include guards defined up front): if the core
 # ever starts depending on Windows or on logic.dll, this library stops compiling. doctest itself needs
