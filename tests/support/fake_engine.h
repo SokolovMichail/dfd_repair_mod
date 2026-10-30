@@ -20,9 +20,9 @@
 #include <utility>
 #include <vector>
 
-#include "../../plugins/spares_supply/common.h"
-#include "../../plugins/spares_supply/repair.h"
-#include "../../plugins/spares_supply/spares.h"
+#include "../../plugins/spares_supply/logic_dll/common.h"
+#include "../../plugins/spares_supply/logic_dll/repair.h"
+#include "../../plugins/spares_supply/logic_dll/spares.h"
 
 namespace fake {
 

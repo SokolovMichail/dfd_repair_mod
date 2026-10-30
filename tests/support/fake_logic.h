@@ -13,7 +13,7 @@
 // It uses the plugin's constants (common.h).
 #pragma once
 
-#include "../../plugins/spares_supply/common.h"
+#include "../../plugins/spares_supply/logic_dll/common.h"
 #include "fake_pe.h"
 
 namespace fake {
