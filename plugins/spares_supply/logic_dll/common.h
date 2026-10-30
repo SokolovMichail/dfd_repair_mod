@@ -31,10 +31,17 @@
 #include <vector>
 
 #include "../../../common/patch.h"
+#include "../core/game.h"
 
 namespace spares_supply {
 
 using dfd::Image;
+
+// Engine pointers <-> core handles. In logic.dll a station is the supply component that runs F4 mode
+// (AmmoRechargerFacet / RefuellerFacet) and a vehicle is the engine's entity object; the core only passes
+// them around.
+inline core::Station* station(void* facet) { return static_cast<core::Station*>(facet); }
+inline core::Vehicle* vehicle(void* entity) { return static_cast<core::Vehicle*>(entity); }
 
 // ---------------------------------------------------------------- что ищем в logic.dll
 

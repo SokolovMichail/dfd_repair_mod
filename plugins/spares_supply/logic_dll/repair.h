@@ -26,9 +26,13 @@
 
 #include <unordered_map>
 
+#include "../core/repair.h"
 #include "common.h"
 
 namespace spares_supply {
+
+using core::Repaired;
+using core::Stock;
 
 constexpr const char* kRepairMaterial = "materials/rounds/repairRecharge.material";
 
@@ -38,14 +42,6 @@ constexpr size_t kModulesSpares = 0x130;  // запчасти машины (int;
 constexpr size_t kModuleDesc = 0x00, kModuleHealth = 0x0c, kModuleArmor = 0x28;     // в модуле
 constexpr size_t kDescMaxHealth = 0x28, kDescArmor = 0x90, kArmorLayerSize = 0x10;  // в описании модуля
 constexpr int kArmorSides = 6;
-
-// Ремонт: раз в kRepairPeriod секунд каждой машине в зоне.
-constexpr float kRepairPeriod = 0.5f;
-constexpr float kRepairFraction = 0.02f;  // модулю - 2% максимума (4%/с: от нуля до полного - 25 с)
-constexpr float kArmorFraction = 0.02f;   // слою брони - 2% исходной толщины
-// Цена - запчасти самой HEMTT Repair (у цели не списываются). Модуль: 1 запчасть за 1 здоровья (как у
-// ремонта экипажем). Броня: kSparesPerMm запчастей за единицу толщины (судя по данным - миллиметр).
-constexpr float kSparesPerMm = 1.0f;
 
 // std::string MSVC (x64): буфер/указатель, длина, ёмкость; при ёмкости >= 16 строка лежит по указателю.
 struct MsvcString {
@@ -58,34 +54,17 @@ static_assert(sizeof(MsvcString) == 32);
 using IncHealthFn = void (*)(void* modules, size_t index, int amount);
 using DiplomacyFn = void* (*)(void* world);
 
-struct Repaired {
-    int health = 0;  // сколько здоровья добавлено модулям
-    int layers = 0;  // сколько слоёв брони подросло
-    int spent = 0;   // сколько запчастей потрачено
-};
-
 int& sparesOfModules(void* modules);
 
-// Склад запчастей HEMTT Repair. Дробная цена брони копится в debt и списывается целыми запчастями.
-struct Stock {
-    int& spares;
-    float& debt;
-    // Заплатить cost запчастей: цена копится в debt, со склада списывается целая часть (но не больше,
-    // чем есть). Потраченное прибавляется к r.spent.
-    void pay(float cost, Repaired& r) {
-        debt += cost;
-        int whole = std::min(spares, static_cast<int>(debt));
-        spares -= whole;
-        debt -= whole;
-        r.spent += whole;
-    }
-};
-
+// One repair pulse of the vehicle whose DamageableModulesFacet is `modules` - core::repairVehicle over it.
 Repaired repairVehicle(void* modules, Stock stock);
 
-extern std::unordered_map<void*, float> g_repairTimers;
-extern std::unordered_map<void*, float> g_armorDebt;
-extern int g_repairLogs;
+// Repair state of all stations (pulse timers, armor debt, log line counter) and short names for its parts.
+extern core::RepairState g_repair;
+extern std::unordered_map<core::Station*, float>& g_repairTimers;
+extern std::unordered_map<core::Station*, float>& g_armorDebt;
+extern int& g_repairLogs;
+// F4 mode of HEMTT Repair on the ammo component `ammo` - core::tickRepair through the logic.dll port.
 void tickRepair(void* ammo, float dt);
 // Forget the repair state (pulse timer, armor debt) of an ammo component - F4 mode is over.
 void forgetRepair(void* ammo);

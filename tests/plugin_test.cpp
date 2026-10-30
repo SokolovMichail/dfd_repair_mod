@@ -462,11 +462,11 @@ TEST_CASE_FIXTURE(Engine, "The game's own repair update is not run at all") {
 
 TEST_CASE_FIXTURE(Engine, "Leaving F4 resets the repair timer and debt") {
     Repair r;
-    g_repairTimers[r.ammo.p()] = 0.3f;
-    g_armorDebt[r.ammo.p()] = 0.5f;
+    g_repairTimers[station(r.ammo.p())] = 0.3f;
+    g_armorDebt[station(r.ammo.p())] = 0.5f;
     hookAmmoOff(r.ammo.p());
-    CHECK(g_repairTimers.count(r.ammo.p()) == 0);
-    CHECK(g_armorDebt.count(r.ammo.p()) == 0);
+    CHECK(g_repairTimers.count(station(r.ammo.p())) == 0);
+    CHECK(g_armorDebt.count(station(r.ammo.p())) == 0);
 }
 
 // ================================================================ paying with spare parts
@@ -822,7 +822,7 @@ TEST_CASE_FIXTURE(Engine, "Repair: each HEMTT Repair has its own armor debt, and
     tickRepair(r1.ammo.p(), 0.5f);  // r1: 0.5 + 0.5 = 1 -> 1 taken
     CHECK(sparesIn(r1.modules) == 9999);
     CHECK(sparesIn(r2.modules) == 10000);  // r2 has its own debt, still 0.5
-    CHECK(g_armorDebt[r2.ammo.p()] == doctest::Approx(0.5f));
+    CHECK(g_armorDebt[station(r2.ammo.p())] == doctest::Approx(0.5f));
 }
 
 TEST_CASE_FIXTURE(RepairZone, "Repair through F4 mode: HEMTT Repair's ammo update makes the pulse") {
