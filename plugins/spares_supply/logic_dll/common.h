@@ -157,6 +157,7 @@ void trace(const char* what, void* facet);
 // Zone circle (common.cpp); the materials themselves are drawn by spares.cpp / repair.cpp.
 extern std::unordered_set<void*> g_ownCircles;
 extern bool g_circleWritable;
+void unprotectCircle();
 void* circleOf(void* ammo);
 void convertCircle(void* ammo, Kind kind);
 
@@ -172,6 +173,32 @@ core::Ports& ports();
 
 // Finding addresses in logic.dll and installing the patches.
 bool resolve(const Image& img);
+
+// Where install() sends the plugin's writes to logic.dll. The standalone DLL writes them itself, all or nothing
+// (dfd::PatchSet); a mod loader may want to own every write instead. install() queues the writes with bytes()
+// and vslot(), then calls apply() once.
+class Patcher {
+public:
+    virtual ~Patcher() = default;
+    // Replace bytes at `at`: orig must be what is there now, repl is what to write (orig == repl only checks).
+    virtual void bytes(const char* what, uintptr_t at, std::vector<uint8_t> orig, std::vector<uint8_t> repl) = 0;
+    // Point vtable slot `slot` at hook. The function now in the slot must start with prologue; *saved gets it
+    // (the original, for the hook to call).
+    virtual void slot(const char* what, uintptr_t vtable, int slot, const char* prologue, void* hook,
+                      void** saved) = 0;
+    // Check every queued write, then make them all, or none. false - nothing written (the reason is logged).
+    virtual bool apply() = 0;
+
+    // slot() for a typed hook and its typed original.
+    template <class Fn>
+    void vslot(const char* what, uintptr_t vtable, int index, const char* prologue, Fn hook, Fn* saved) {
+        slot(what, vtable, index, prologue, reinterpret_cast<void*>(hook), reinterpret_cast<void**>(saved));
+    }
+};
+
+// Find everything in logic.dll (resolve) and send all the plugin's writes to p. true - p accepted them all.
+bool install(const Image& img, Patcher& p);
+// The standalone way: install() with the writes made at once by dfd::PatchSet.
 void onLogicLoaded(uintptr_t base);
 
 }  // namespace spares_supply

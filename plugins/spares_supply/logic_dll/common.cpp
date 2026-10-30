@@ -247,20 +247,18 @@ bool resolve(const Image& img) {
            g_a.diplomacy;
 }
 
-// Вызывается DllWatcher, когда logic.dll загружена (base - её адрес), до выполнения её кода.
-// Находит адреса (resolve) и ставит все правки одним набором PatchSet: всё или ничего. Не нашлось или не
-// совпало хоть что-то - не меняет ничего, пишет причину в лог. Успех - строка «SparesSupply active».
-void onLogicLoaded(uintptr_t base) {
-    Image img(base);
+// Находит адреса (resolve) и отдаёт все правки p одним набором: всё или ничего. Не нашлось или не
+// совпало хоть что-то - не меняет ничего, пишет причину в лог.
+bool install(const Image& img, Patcher& p) {
+    uintptr_t base = img.base();
     g_log("logic.dll at %p (TimeDateStamp %08X, SizeOfImage %08X)", reinterpret_cast<void*>(base),
           img.timeDateStamp(), img.sizeOfImage());
     if (!resolve(img)) {
         g_log("this logic.dll build is not supported - nothing patched");
-        return;
+        return false;
     }
 
     const std::vector<uint8_t> movR15b1{0x41, 0xB7, 0x01}, nop3{0x90, 0x90, 0x90};
-    dfd::PatchSet p(img);
     p.bytes("cars: support no longer blocks ammunition_recharge", g_a.supportBlocksAmmo[0], movR15b1, nop3);
     p.bytes("tanks: support no longer blocks ammunition_recharge", g_a.supportBlocksAmmo[1], movR15b1, nop3);
     p.bytes("cars: repair no longer blocks ammunition_recharge", g_a.repairBlocksAmmo[0], movR15b1, nop3);
@@ -300,17 +298,52 @@ void onLogicLoaded(uintptr_t base) {
     uintptr_t sparesOn = *reinterpret_cast<uintptr_t*>(g_a.sparesVt + 8 * kSlotActivate);
     if (!Image::matches(sparesOn, kPrologueSparesOn)) {
         g_log("verify FAILED: SparesRechargerFacet::activate - nothing patched");
-        return;
+        return false;
     }
     g_origSparesOn = reinterpret_cast<FacetFn>(sparesOn);
     const std::vector<uint8_t> leaAmmo{0x4C, 0x8D, 0x80, 0x20, 0x01, 0x00, 0x00};
     p.bytes("supply circle material lea (verify only)", g_a.circleLea, leaAmmo, leaAmmo);
-    if (!p.apply(g_log)) return;
+    return p.apply();
+}
 
+// The circle material lea is rewritten while the game runs (redrawSparesCircle), so its 7 bytes are made
+// writable once, after the patches are in. Fails - g_circleWritable stays false and spares circles keep the
+// ammo icons; everything else works.
+void unprotectCircle() {
     DWORD old;
     g_circleWritable = VirtualProtect(reinterpret_cast<void*>(g_a.circleLea), 7, PAGE_EXECUTE_READWRITE, &old);
     if (!g_circleWritable)
         g_log("cannot unprotect circle material lea (error %lu) - spares circle keeps ammo icons", GetLastError());
+}
+
+namespace {
+
+// The standalone Patcher: dfd::PatchSet checks every write, then makes them all itself.
+class PatchSetPatcher final : public Patcher {
+public:
+    explicit PatchSetPatcher(const Image& img) : set_(img) {}
+    void bytes(const char* what, uintptr_t at, std::vector<uint8_t> orig, std::vector<uint8_t> repl) override {
+        set_.bytes(what, at, std::move(orig), std::move(repl));
+    }
+    void slot(const char* what, uintptr_t vtable, int slot, const char* prologue, void* hook,
+              void** saved) override {
+        set_.vslot(what, vtable, slot, prologue, hook, saved);
+    }
+    bool apply() override { return set_.apply(g_log); }
+
+private:
+    dfd::PatchSet set_;
+};
+
+}  // namespace
+
+// Вызывается DllWatcher, когда logic.dll загружена (base - её адрес), до выполнения её кода.
+// Ставит все правки сразу (install + PatchSetPatcher). Успех - строка «SparesSupply active».
+void onLogicLoaded(uintptr_t base) {
+    Image img(base);
+    PatchSetPatcher p(img);
+    if (!install(img, p)) return;
+    unprotectCircle();
     g_log("SparesSupply active");
 }
 
