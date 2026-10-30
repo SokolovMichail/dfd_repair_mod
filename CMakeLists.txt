@@ -44,7 +44,10 @@ set(SPARES_SUPPLY_SOURCES ${SPARES_SUPPLY_CORE_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/common.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/spares.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/repair.cpp")
-add_library(SparesSupply SHARED ${SPARES_SUPPLY_SOURCES})
+# The standalone DLL (bin\plugins\SparesSupply.dll, loaded by our winhttp.dll): the shared sources + its entry
+# point. The tests build the shared sources without it.
+add_library(SparesSupply SHARED ${SPARES_SUPPLY_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/standalone.cpp")
 dfd_dll(SparesSupply)
 target_compile_definitions(SparesSupply PRIVATE "SPARES_SUPPLY_VERSION=\"${MOD_VERSION}\"")
 

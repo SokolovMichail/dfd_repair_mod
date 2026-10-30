@@ -1,14 +1,11 @@
 // SparesSupply.dll, shared part: engine object model, F4 mode on the ammo component, zone circle,
-// finding addresses in logic.dll and installing the patches, DLL entry point. Overview - common.h.
+// finding addresses in logic.dll and installing the patches. The DLL entry point is in standalone.cpp.
+// Overview - common.h.
 
 #include "common.h"
 
 #include "repair.h"
 #include "spares.h"
-
-#ifndef SPARES_SUPPLY_VERSION  // задаётся из CMake (MOD_VERSION)
-#define SPARES_SUPPLY_VERSION "dev"
-#endif
 
 namespace spares_supply {
 
@@ -317,19 +314,4 @@ void onLogicLoaded(uintptr_t base) {
     g_log("SparesSupply active");
 }
 
-dfd::DllWatcher g_watcher;
-
 }  // namespace spares_supply
-
-using namespace spares_supply;
-
-// Точка входа DLL. Её загружает winhttp.dll (загрузчик) из своего DllMain, т.е. под loader lock Windows:
-// здесь только открываем лог и подписываемся на загрузку logic.dll - вся работа в onLogicLoaded.
-BOOL WINAPI DllMain(HINSTANCE self, DWORD reason, LPVOID) {
-    if (reason != DLL_PROCESS_ATTACH) return TRUE;
-    DisableThreadLibraryCalls(self);
-    g_log.open(self, L"SparesSupply");
-    g_log("SparesSupply " SPARES_SUPPLY_VERSION " loaded, waiting for logic.dll");
-    if (!g_watcher.watch(L"logic.dll", &onLogicLoaded)) g_log("cannot register DLL notification");
-    return TRUE;
-}
