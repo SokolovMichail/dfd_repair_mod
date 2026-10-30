@@ -1,6 +1,13 @@
-"""Собирает папку мода HEMTT Spares из актуальных файлов установленной игры.
+"""Собирает два мода из актуальных файлов установленной игры:
 
-    python mod/build_mod.py --game <папка игры> --out <папка мода> [--cache <кэш>] [--version 1.0]
+    python mod/build_mod.py --game <папка игры> --out <папка HEMTT_Spares> --framework-out <папка фреймворка>
+                            [--cache <кэш>] [--version 1.0]
+
+- мини-мод фреймворка SparesSupply & Repair Framework (--framework-out, mods\\SparesSupplyRepairFramework):
+  только материалы и текстуры кругов зоны F4, которыми плагин рисует зоны запчастей и ремонта. Таблиц в нём нет,
+  поэтому он ни с чем не конфликтует; нужен любой машине на фреймворке;
+- мод-пример HEMTT Spares (--out, mods\\HEMTT_Spares): сами машины - таблицы, магазины, армия, энциклопедия,
+  локализация, значки. Без мини-мода фреймворка круги его машин не нарисуются.
 
 Новые машины - копии HEMTT Supply (Fnd_HEMTT_ammunition), который не меняется (список - UNITS):
 Fnd_HEMTT_spares («HEMTT Spares», запчасти) и Fnd_HEMTT_repairer («HEMTT Repair», ремонт и броня).
@@ -86,7 +93,16 @@ MOD_JSON = {
     'description': (
         'This mod adds two new mechanics: zone resupply of spare parts (like ammunition) and zone repair with '
         'armor restoration, as well as two new vehicles to accommodate them - HEMTT Spares and HEMTT Repair, '
-        'respectively.'),
+        'respectively. Requires the SparesSupply & Repair Framework mod (included): enable both.'),
+    'icon': 'basis/mod_icon.dds',
+}
+# Мини-мод фреймворка: только круги зоны (CIRCLES).
+FRAMEWORK_JSON = {
+    'name': 'SparesSupply & Repair Framework',
+    'description': (
+        'Zone circles for spare parts supply and repair vehicles. Needed by every mod built on the SparesSupply & '
+        'Repair Framework (such as HEMTT Spares); the zone mechanics themselves come from its plugin. Adds no '
+        'vehicles and changes no game tables.'),
     'icon': 'basis/mod_icon.dds',
 }
 
@@ -128,6 +144,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--game', required=True)
     ap.add_argument('--out', required=True, help='папка мода, например .../mods/HEMTT_Spares (пересоздаётся)')
+    ap.add_argument('--framework-out', required=True,
+                    help='папка мини-мода фреймворка, например .../mods/SparesSupplyRepairFramework (пересоздаётся)')
     ap.add_argument('--cache', help='куда распаковать файлы игры (по умолчанию <out>/../_game_src)')
     ap.add_argument('--version', default='dev')
     a = ap.parse_args()
@@ -145,29 +163,37 @@ def main():
             print(f'  {layer:18} {rel:70} <- {origin}')
     S = lambda layer, rel: src[(layer, rel)]
 
-    if os.path.isdir(out):
-        shutil.rmtree(out)
-    os.makedirs(os.path.join(out, 'basis'))
+    fw = os.path.abspath(a.framework_out)
+    for d in (out, fw):
+        if os.path.isdir(d):
+            shutil.rmtree(d)
+        os.makedirs(os.path.join(d, 'basis'))
     env = dict(os.environ, DFD_SRC=os.path.join(cache, 'base'), PYTHONIOENCODING='utf-8')
 
-    print('== mod.json, icon')
-    meta = dict(MOD_JSON, description=f'Version {a.version}.\n' + MOD_JSON['description'])
-    with open(os.path.join(out, 'mod.json'), 'w', encoding='utf-8') as f:
-        json.dump(meta, f, ensure_ascii=False, indent=4)
-    run('art/make_mod_icon.py', os.path.join(out, 'basis', 'mod_icon.dds'), env=env)
+    def mod_json(folder, meta):
+        """mod.json мода: описание начинается с «Version X.»."""
+        meta = dict(meta, description=f'Version {a.version}.\n' + meta['description'])
+        with open(os.path.join(folder, 'mod.json'), 'w', encoding='utf-8') as f:
+            json.dump(meta, f, ensure_ascii=False, indent=4)
 
-    print('== unit icons, supply circles')
-    textures = os.path.join(out, 'basis', 'textures')
-    for u in UNITS:
-        run('art/make_unit_icons.py', textures, '--kind', u['icon_kind'], env=env)
-    decals = os.path.join(textures, 'cursor_decals')
+    print('== framework: mod.json, icon, supply circles')
+    mod_json(fw, FRAMEWORK_JSON)
+    run('art/make_mod_icon.py', '--framework', os.path.join(fw, 'basis', 'mod_icon.dds'), env=env)
+    decals = os.path.join(fw, 'basis', 'textures', 'cursor_decals')
     run('art/make_circle_spares.py', os.path.join(decals, 'circle_spares.dds'))
     run('art/make_circle_repair.py', os.path.join(decals, 'circle_repair.dds'))
-    materials = os.path.join(out, 'basis', 'materials', 'rounds')
+    materials = os.path.join(fw, 'basis', 'materials', 'rounds')
     os.makedirs(materials)
     for name, texture in CIRCLES.items():
         with open(os.path.join(materials, f'{name}.material'), 'w', encoding='utf-8', newline='\n') as f:
             f.write(CIRCLE_MATERIAL.replace('{texture}', texture))
+
+    print('== HEMTT Spares: mod.json, icon, unit icons')
+    mod_json(out, MOD_JSON)
+    run('art/make_mod_icon.py', os.path.join(out, 'basis', 'mod_icon.dds'), env=env)
+    textures = os.path.join(out, 'basis', 'textures')
+    for u in UNITS:
+        run('art/make_unit_icons.py', textures, '--kind', u['icon_kind'], env=env)
 
     # таблица заменяется целиком: каждая следующая правка - поверх результата предыдущей
     def tables(src, dst, edits):
@@ -225,6 +251,7 @@ def main():
     tables(S('canada_loc_en', 'locale/encyclopedia_dlc_loc.xml'),
            os.path.join(can_loc, 'encyclopedia_dlc_loc.xml'), clone(article))
 
+    print(f'built {fw}')
     print(f'built {out}')
 
 

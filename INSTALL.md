@@ -16,6 +16,9 @@
   повреждённые модули и броню. Платит своими запчастями (везёт 10000): 1 за единицу здоровья модуля, 1 за 1 мм
   брони; у ремонтируемой машины ничего не списывается. Себя и уничтоженную технику не чинит.
 
+Механику зон даёт **SparesSupply & Repair Framework** — он входит в комплект HEMTT Spares; на нём можно делать
+и свои машины ([`docs/MODDING.md`](docs/MODDING.md)).
+
 Основная кампания и кампания Canada: обе — во всех магазинах, по одной. Кампания Resistance: обе — по одной в магазине первого
 сектора; HEMTT Spares ещё и в тех же наградах, что HEMTT Supply. Скирмиш: Основатели (Founders).
 
@@ -27,16 +30,20 @@
 
 ### Установка
 
-1. Скачайте `HEMTT_Spares_v<версия>.zip`.
+1. Скачайте `HEMTT_Spares_v<версия>.zip` (фреймворк + машины). Есть и другие комплекты: `..._DefianceLoader_...` —
+   под DefianceLoader вместо нашего `winhttp.dll`; `SparesSupplyRepairFramework_...` — только фреймворк, без
+   машин, для модов, построенных на нём. Ниже — про отдельную версию с машинами.
 2. Распакуйте архив **в папку игры** — ту, где лежат папки `bin` и `mods`
    (GOG по умолчанию: `C:\Games\Terminator Dark Fate - Defiance`;
    Steam: ПКМ по игре → Управление → Просмотреть локальные файлы). Должно получиться:
    ```
+   <папка игры>\mods\SparesSupplyRepairFramework\...
    <папка игры>\mods\HEMTT_Spares\...
    <папка игры>\bin\winhttp.dll
    <папка игры>\bin\plugins\SparesSupply.dll
    ```
-3. Запустите игру → меню **MODS** → включите **HEMTT Spares**.
+3. Запустите игру → меню **MODS** → включите оба мода: **SparesSupply & Repair Framework** (круги зон) и
+   **HEMTT Spares** (машины).
 4. Начните новую миссию. Чтобы получить машину в магазине и наградах кампании, нужна новая кампания Resistance.
 
 ### Проверка
@@ -71,10 +78,12 @@
 
 ### Удаление
 
-1. В меню **MODS** выключите HEMTT Spares (желательно — не находясь в кампании, где он используется).
+1. В меню **MODS** выключите HEMTT Spares и SparesSupply & Repair Framework (желательно — не находясь в кампании,
+   где они используются).
 2. Удалите:
    ```
    <папка игры>\mods\HEMTT_Spares
+   <папка игры>\mods\SparesSupplyRepairFramework
    <папка игры>\bin\winhttp.dll
    <папка игры>\bin\plugins
    ```
@@ -87,7 +96,8 @@
 ### Для разработки
 
 Установить из исходников в свою игру: цель CMake **`deploy`** (в CLion — конфигурация **Deploy to game**).
-Она ставит DLL и мод в `GAME_DIR`; мод нужно один раз включить в MODS. Подробности — [`README.md`](README.md).
+Она ставит DLL и оба мода в `GAME_DIR`; моды нужно один раз включить в MODS. Под DefianceLoader — цель
+**`deploy_defiance`** (**Deploy to game (DefianceLoader)**). Подробности — [`README.md`](README.md).
 
 ---
 
@@ -103,6 +113,9 @@ Two new HEMTT-based supply vehicles. Both deploy with **F4** (Supply Mode) and w
   damaged modules and the armor. It pays with its own spare parts (carries 10000): 1 per module health point,
   1 per mm of armor; the repaired vehicle pays nothing. It does not repair itself or destroyed vehicles.
 
+The zone mechanics come from the **SparesSupply & Repair Framework**, included in the HEMTT Spares package; you
+can build your own vehicles on it too ([`docs/MODDING.md`](docs/MODDING.md)).
+
 Main campaign and Canada campaign: one of each in every shop. Resistance campaign: one of each in the first sector shop; HEMTT Spares
 also in the same sector rewards as HEMTT Supply. Skirmish: Founders.
 
@@ -114,16 +127,20 @@ also in the same sector rewards as HEMTT Supply. Skirmish: Founders.
 
 ### Install
 
-1. Download `HEMTT_Spares_v<version>.zip`.
+1. Download `HEMTT_Spares_v<version>.zip` (framework + vehicles). There are other packages too:
+   `..._DefianceLoader_...` for DefianceLoader instead of our `winhttp.dll`; `SparesSupplyRepairFramework_...` — the
+   framework alone, without vehicles, for mods built on it. Below: the standalone package with the vehicles.
 2. Extract it **into the game folder** — the one containing `bin` and `mods`
    (GOG default: `C:\Games\Terminator Dark Fate - Defiance`;
    Steam: right-click the game → Manage → Browse local files). You should get:
    ```
+   <game>\mods\SparesSupplyRepairFramework\...
    <game>\mods\HEMTT_Spares\...
    <game>\bin\winhttp.dll
    <game>\bin\plugins\SparesSupply.dll
    ```
-3. Start the game → **MODS** → enable **HEMTT Spares**.
+3. Start the game → **MODS** → enable both **SparesSupply & Repair Framework** (the zone circles) and
+   **HEMTT Spares** (the vehicles).
 4. Start a new mission. To find the vehicles in shops and sector rewards, start a new campaign.
 
 ### Check
@@ -157,8 +174,9 @@ changes nothing.
 
 ### Uninstall
 
-1. Disable HEMTT Spares in **MODS**.
-2. Delete `<game>\mods\HEMTT_Spares`, `<game>\bin\winhttp.dll` and `<game>\bin\plugins`
+1. Disable HEMTT Spares and SparesSupply & Repair Framework in **MODS**.
+2. Delete `<game>\mods\HEMTT_Spares`, `<game>\mods\SparesSupplyRepairFramework`, `<game>\bin\winhttp.dll` and
+   `<game>\bin\plugins`
    (if other mods' plugins are in `bin\plugins`, delete only `SparesSupply.dll` and its log and keep `winhttp.dll`).
 
 Campaign saves that already contain HEMTT Spares or HEMTT Repair may fail to load without the mod. Finish the campaign or start

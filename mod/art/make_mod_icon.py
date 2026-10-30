@@ -2,6 +2,7 @@
 
     DFD_SRC=<файлы игры> python mod/art/make_mod_icon.py <выход.dds> [превью.png]
     DFD_SRC=<файлы игры> python mod/art/make_mod_icon.py --banner <выход.png>   (превью 1300x372)
+    DFD_SRC=<файлы игры> python mod/art/make_mod_icon.py --framework <выход.dds> [превью.png]   (мини-мод фреймворка)
 
 Две машины мода на силуэте HEMTT Supply из распакованных файлов игры (DFD_SRC): HEMTT Spares с ящиком
 и HEMTT Repair с краном (грузы - из make_unit_icons.py), под каждой - круг зоны F4 своими значками
@@ -128,6 +129,24 @@ def render():
     return img
 
 
+def render_framework():
+    """Иконка мини-мода фреймворка 1920x1080: название и два круга зоны F4 (запчасти, ремонт) - без машин,
+    потому что сам фреймворк машин не добавляет."""
+    img = background()
+    cream, amber = (236, 230, 214, 255), (214, 166, 98, 255)
+    centered(img, W / 2, 70, 'SPARESSUPPLY & REPAIR', font(124, 'Bold'), cream, glow=True)
+    centered(img, W / 2, 225, 'FRAMEWORK', font(84, 'SemiBold'), amber)
+    zones = [  # центр, значок круга, подпись
+        (520, make_circle_spares.render(), 'SPARE PARTS ZONE'),
+        (1400, make_circle_spares.render(make_circle_repair.shape_mask_repair()), 'REPAIR ZONE'),
+    ]
+    cy = 650
+    for cx, icon, label in zones:
+        zone_ring(img, icon, cx, cy, 290, 140, n=14, size=80)
+        centered(img, cx, cy + 230, label, font(54, 'SemiBold'), cream)
+    return img
+
+
 BANNER = (1300, 372)
 
 
@@ -177,7 +196,11 @@ if __name__ == '__main__':
     if sys.argv[1] == '--banner':  # make_mod_icon.py --banner <выход.png>
         render_banner().convert('RGB').save(sys.argv[2])
         sys.exit()
-    icon = render()
-    save_dds(icon, sys.argv[1])
-    if len(sys.argv) > 2:
-        icon.convert('RGB').save(sys.argv[2])
+    args = sys.argv[1:]
+    framework = args[0] == '--framework'  # make_mod_icon.py --framework <выход.dds> [превью.png]
+    if framework:
+        args = args[1:]
+    icon = render_framework() if framework else render()
+    save_dds(icon, args[0])
+    if len(args) > 1:
+        icon.convert('RGB').save(args[1])
