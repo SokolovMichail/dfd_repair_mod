@@ -51,6 +51,7 @@ static_assert(sizeof(MsvcString) == 32);
 using IncHealthFn = void (*)(void* modules, size_t index, int amount);
 using DiplomacyFn = void* (*)(void* world);
 
+// The vehicle's spare parts: an int in its DamageableModulesFacet ([+0x130]), by reference so it can be changed.
 int& sparesOfModules(void* modules);
 
 // Repair state of all stations (pulse timers, armor debt, log line counter) and short names for its parts.
@@ -65,6 +66,9 @@ core::RepairPort& repairPort();
 // Redraw the HEMTT Repair zone circle with the repairRecharge material.
 void redrawRepairCircle(void* ammo);
 
+// RepairerFacet hooks (slots 14 / 13 / 10). F4 mode on HEMTT Repair switches the repair component (it comes
+// before ammo), so on / off are forwarded to the ammo component, which draws the circle and collects the zone;
+// the engine's own unfinished repair update is not run at all.
 void hookRepairOn(void* r);
 void hookRepairOff(void* r);
 void hookRepairUpdate(void*, float);

@@ -30,17 +30,24 @@ inline core::SparesDepot* depot(void* facet) { return static_cast<core::SparesDe
 // core::SparesPort over logic.dll.
 core::SparesPort& sparesPort();
 
+// The SparesRechargerFacet of the same vehicle as facet; nullptr - none.
 void* sparesOf(void* facet);
+// Spare parts of recharger's vehicle follow F4 mode (core::syncSpares).
 void syncSpares(void* recharger, bool on);
+// One F4 frame of spare parts of recharger's vehicle (core::tickSpares); returns the spare parts component.
 void* tickSpares(void* recharger, float dt);
 // Redraw the HEMTT Spares zone circle with the sparesRecharge material; false - the circle function
 // instruction is not writable, nothing was drawn.
 bool redrawSparesCircle(void* ammo);
 
+// RefuellerFacet hooks (slots 14 / 13 / 10): the original, then the same vehicle's spare parts follow - for a
+// vehicle with refuel and support, where F4 mode switches the refueller.
 void hookFuelOn(void* f);
 void hookFuelOff(void* f);
 void hookFuelUpdate(void* f, float dt);
+// SparesRechargerFacet::update hook (slot 10): the original (resupply vehicles in the radius) + zone diagnostics.
 void hookSparesUpdate(void* spares, float dt);
+// SparesRechargerFacet::deactivate hook (slot 13): skipped while F4 mode runs (core::mayTurnSparesOff).
 void hookSparesOff(void* spares);
 
 }  // namespace spares_supply

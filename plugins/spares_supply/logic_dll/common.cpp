@@ -110,17 +110,24 @@ void convertCircle(void* ammo, Kind kind) {
 
 namespace {
 
-// What core's common F4 rules need, taken from logic.dll. A station is an AmmoRechargerFacet.
+// What core's common F4 rules need, taken from logic.dll. A station is an AmmoRechargerFacet: the component
+// F4 mode switches on HEMTT Supply and HEMTT Spares, and the one HEMTT Repair's hooks forward F4 mode to.
 class LogicDllSupplyPort final : public core::SupplyPort {
 public:
+    // By the components the vehicle has: spare parts first, then repair (kindOf).
     Kind kind(core::Station* s) override { return kindOf(s); }
+    // "Off" flag, byte +0x59; 0 means switched on.
     bool isOn(core::Station* s) override { return spares_supply::isOn(s, kRechargerOffFlag); }
+    // Redraws the circle with our material once and remembers it in g_ownCircles (convertCircle).
     void showCircle(core::Station* s, Kind kind) override { convertCircle(s, kind); }
+    // Events go through trace(): the first 50 per run, with the facet and owner addresses.
     void event(const char* what, core::Station* s) override { trace(what, s); }
 };
 
 }  // namespace
 
+// One set of ports for the whole plugin. Built on first use (the first F4 event), after the plugin's globals
+// exist; the ports keep no state, the repair state lives in g_repair (repair.cpp).
 core::Ports& ports() {
     static LogicDllSupplyPort supply;
     static core::Ports p{supply, sparesPort(), repairPort(), g_repair};
@@ -132,13 +139,16 @@ core::Ports& ports() {
 // перерисовать круг своим материалом.
 void hookAmmoOn(void* f) {
     g_origAmmoOn(f);
+    // the mod's part - core::onSupplyOn (core/supply.cpp)
     core::onSupplyOn(ports(), station(f));
 }
 // Перехват AmmoRechargerFacet::deactivate (слот 13) - режим F4 выключен. Забываем круг и состояние
 // ремонта этого компонента, вызываем оригинал (убирает круг), у HEMTT Spares выключаем запчасти.
 void hookAmmoOff(void* f) {
+    // before the original: it removes the circle, and [ammo+0x50] would already be empty
     if (void* c = circleOf(f)) g_ownCircles.erase(c);
     g_origAmmoOff(f);
+    // the mod's part - core::onSupplyOff: forget the repair state, switch spare parts off
     core::onSupplyOff(ports(), station(f));
 }
 
@@ -148,12 +158,14 @@ void hookAmmoOff(void* f) {
 // при загрузке сохранения), тоже перекрашиваем.
 void hookAmmoUpdate(void* f, float dt) {
     g_origAmmoUpdate(f, dt);
+    // the mod's part - core::onSupplyTick (does nothing while F4 mode is off)
     core::onSupplyTick(ports(), station(f), dt);
 }
 
 // Перехват AmmoRechargerFacet::canRecharge (слот 17): можно ли дать патроны target. Машины мода патроны
 // не раздают никогда - ни по зоне, ни по приказу; остальным - решает оригинал.
 bool hookAmmoCanRecharge(void* ammo, void* target) {
+    // the rule - core::handsOutAmmo; the same answer for the zone and for the click order
     if (!core::handsOutAmmo(kindOf(ammo))) return false;
     return g_origAmmoCanRecharge(ammo, target);
 }

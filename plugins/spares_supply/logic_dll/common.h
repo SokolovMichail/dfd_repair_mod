@@ -123,11 +123,14 @@ R vcall(void* obj, size_t offset, A... args) {
     return reinterpret_cast<R (*)(void*, A...)>(vtbl[offset / 8])(obj, args...);
 }
 
+// Give back a strong reference taken from the engine, the way the engine does it (free at zero).
 void release(RefBlock* rb);
 
-extern dfd::Log g_log;
-extern int g_events;
+extern dfd::Log g_log;  // bin\plugins\SparesSupply.log
+extern int g_events;    // events written by trace() so far (at most 50 per run)
 
+// Signatures of the hooked engine methods; g_orig* - the original functions, saved when the patches go in,
+// so the hooks can call them.
 using FacetFn = void (*)(void* facet);
 using CanRechargeFn = bool (*)(void* facet, void* target);
 using UpdateFn = void (*)(void* facet, float dt);
@@ -136,14 +139,19 @@ extern FacetFn g_origRepairOn, g_origRepairOff;
 extern CanRechargeFn g_origAmmoCanRecharge;
 extern UpdateFn g_origSparesUpdate, g_origAmmoUpdate, g_origFuelUpdate, g_origRepairUpdate;
 
+// The vehicle a component belongs to: [facet+0x10] is a reference block, its object is the vehicle.
 void* ownerOf(void* facet);
+// Is a supply component switched on: its "off" byte at offFlag (kRechargerOffFlag / kSparesOffFlag) is 0.
 bool isOn(void* facet, size_t offFlag);
+// The vehicle's component of the exact class vtbl, walking the vehicle's component iterator the way the
+// engine does; nullptr - no vehicle or no such component.
 void* findFacet(void* entity, uintptr_t vtbl);
 
 // Kind of the vehicle that owns the ammo component: Spares - it has a spare parts component (HEMTT Spares),
 // Repair - a repair component (HEMTT Repair), Ammo - neither (an ordinary HEMTT Supply and the rest).
 Kind kindOf(void* ammo);
 
+// Write an event to the log - only the first 50 per run: what happened, with which component and vehicle.
 void trace(const char* what, void* facet);
 
 // Zone circle (common.cpp); the materials themselves are drawn by spares.cpp / repair.cpp.
