@@ -47,11 +47,14 @@ CMakeLists.txt         цели сборки (см. ниже), версия мо
 .run/                  готовые конфигурации запуска CLion: Build release / Deploy to game / Build mod data
 common/patch.h         общее для плагинов: лог, поиск по шаблонам и RTTI, набор правок, ожидание загрузки DLL
 loader/                winhttp.dll: прокси системной winhttp.dll + загрузчик bin\plugins\*.dll
-plugins/spares_supply/ SparesSupply.dll:
+plugins/spares_supply/ SparesSupply.dll (отдельно) и spares_repair.dll (плагин DefianceLoader) - из одних исходников:
   core/                правила мода без привязки к игре: supply.* (режим F4), spares.* (HEMTT Spares),
                        repair.* (HEMTT Repair); с игрой говорят только через интерфейсы-порты
   logic_dll/           привязка к нынешней logic.dll: common.* (модель объектов, перехваты боеприпасов,
-                       установка правок), spares.*, repair.* (перехваты и реализация портов)
+                       установка правок), spares.*, repair.* (перехваты и реализация портов);
+                       standalone.cpp - точка входа SparesSupply.dll, defiance.cpp - точка входа spares_repair.dll
+  spares_repair.plugin.json.in  манифест плагина DefianceLoader (CMake подставляет версию)
+third_party/defiance/  defiance.h - C-заголовок API DefianceLoader (v1.9.0, MIT)
 tools/                 gen_winhttp_proxy.py - генерация переходников winhttp (нужен редко)
 mod/
   build_mod.py         сборка папки мода из актуальных файлов игры (что и откуда - в начале файла)
@@ -83,8 +86,10 @@ dist/                  результат «собрать релиз» (в git 
 | Цель | Что делает |
 |---|---|
 | `winhttp`, `SparesSupply` | DLL (профиль CLion, обычно Debug). |
+| `spares_repair` | Тот же плагин для DefianceLoader: `spares_repair.dll` + `spares_repair.plugin.json` в папке сборки. |
 | `mod` | Собирает данные мода в `<build>/stage/mods/HEMTT_Spares`. Файлы игры каждый раз берутся заново — после обновления игры достаточно пересобрать. |
 | `deploy` | Ставит в игру: `bin\winhttp.dll`, `bin\plugins\SparesSupply.dll`, `mods\HEMTT_Spares`. Игра должна быть закрыта; мод нужно один раз включить в меню MODS. |
+| `deploy_defiance` | То же для DefianceLoader: `DefianceLoader\plugins\spares_repair.dll` + манифест, `mods\HEMTT_Spares`. Ставить что-то одно — `deploy` или `deploy_defiance` (см. «DefianceLoader»). |
 | `release` | **Собрать релиз**: отдельная Release-сборка DLL (оптимизация, без отладочной информации) + данные мода + `dist/HEMTT_Spares_v<версия>.zip`, `dist/HEMTT_Spares_v<версия>_cover.png` (1920×1080) и `_banner.png` (1300×372). |
 
 В CLion: выбрать конфигурацию **Build release** (или **Deploy to game**) и нажать Run — либо Build → Build Target.
@@ -108,6 +113,7 @@ cmake --build cmake-build-debug --target release
 | `patch_h_test` | поиск по шаблонам и RTTI, набор правок «всё или ничего», лог, ожидание загрузки DLL |
 | `plugin_test` | режим F4 у HEMTT Spares / Repair / Supply, круг зоны, ремонт модулей и брони, оплата запчастями |
 | `plugin_install_test` | поиск адресов и установка правок в поддельной `logic.dll`; при любом несовпадении — не меняется ничего |
+| `plugin_defiance_test` | плагин DefianceLoader на поддельном загрузчике: просит ровно те же правки, сам не пишет, контракт совпадает, отказ при несовпадении, обе DLL сразу, `supply-radius`, настройка `log` |
 | `core_test` | правила ядра (`core/`) на простых тестовых портах, без подделки движка; ядро собирается без `windows.h` |
 
 Тесты собираются вместе с остальным (`-DDFD_TESTS=OFF` — отключить). В CLion — конфигурация **All CTest**; из
@@ -128,6 +134,41 @@ HEMTT Repair — строки `repair: target=… +N hp, M armor layers`.
 Если там `not supported` — у игры другой код: смотреть, какой шаблон не нашёлся, и обновлять его через
 `re/mksig.py` (см. `docs/engine_notes.md`).
 
+С DefianceLoader — `DefianceLoader\logs\defiance-loader.log`, строки `sokolov.spares-repair`:
+`SparesSupply <версия> as a DefianceLoader plugin` … `SparesSupply staged`, затем состояние плагина `active`.
+
+## DefianceLoader
+
+Мод работает и сам (наш `winhttp.dll`), и как плагин [DefianceLoader](https://github.com/DefianceLoader/DefianceLoader)
+(`bin\dxgi.dll`). Правила и перехваты одни и те же; плагин просто отдаёт свои правки загрузчику, а тот
+следит, чтобы плагины не писали в одно место (подробно — `docs/ARCHITECTURE.md`, 5.7).
+
+Установка с DefianceLoader: `spares_repair.dll` и `spares_repair.plugin.json` — в `DefianceLoader\plugins\`,
+мод — в `mods\HEMTT_Spares` (цель `deploy_defiance`). `bin\winhttp.dll` и `bin\plugins\SparesSupply.dll` при
+этом **не нужны** — если они остались, работает отдельная DLL, а плагин загрузчика отказывается и пишет в лог,
+что удалить. Нужен плагин загрузчика `defiance.core` (идёт с ним). Только одиночная игра: загрузчик не пустит
+в сетевую игру, пока плагин включён. Выключить — `enabled = false` в разделе `[sokolov.spares-repair]` файла
+`DefianceLoader\config\settings.ini`; `log = false` — без строк событий в логе.
+
+Если включён плагин загрузчика `defiance.supply-radius`, радиус зоны запчастей задаёт он (правку радиуса мы
+пропускаем).
+
+**Куда пишет плагин** (всё — `logic.dll`, байтовые правки `patch_bytes`; RVA — GOG 2026-09-25, на других
+сборках адреса другие, плагин находит их при запуске):
+
+| Место | Правка | RVA (GOG 2026-09-25) |
+| --- | --- | --- |
+| сборщик описаний машин: флаг после `support` | `mov r15b,1` → `nop` (3 байта) | 0x51ce31 |
+| сборщик описаний танков: флаг после `support` | то же | 0x52238f |
+| сборщик описаний машин: флаг после `repair` | то же | 0x51ced2 |
+| сборщик описаний танков: флаг после `repair` | то же | 0x522432 |
+| поиск целей запчастей: `movss xmm2, [20.0]` | → `movss xmm2, [supplyRadius]` (8 байт; пропускается при `defiance.supply-radius`) | 0x439c67 |
+| `AmmoRechargerFacet` слоты 10 / 13 / 14 / 17 (`update`, `deactivate`, `activate`, `canRecharge`) | слот vtable, 8 байт | 0x710900, 0x710918, 0x710920, 0x710938 |
+| `RefuellerFacet` слоты 10 / 13 / 14 | слот vtable | 0x733d70, 0x733d88, 0x733d90 |
+| `SparesRechargerFacet` слоты 10 / 13 | слот vtable | 0x73d9a8, 0x73d9c0 |
+| `RepairerFacet` слоты 10 / 13 / 14 | слот vtable | 0x734028, 0x734040, 0x734048 |
+| функция круга `AmmoRechargerFacet`: `lea r8,[rax+0x120]` (материал) | заявлена без изменений; плагин меняет её сам на время перерисовки круга (7 байт) | 0x120687 |
+
 ## Новый плагин
 
 1. `plugins/<имя>/<имя>.cpp`, подключить `common/patch.h`.
@@ -141,4 +182,5 @@ HEMTT Repair — строки `repair: target=… +N hp, M armor layers`.
 
 ## Удаление из игры
 
-Выключить мод в MODS, удалить `mods\HEMTT_Spares`, `bin\winhttp.dll` и `bin\plugins`.
+Выключить мод в MODS, удалить `mods\HEMTT_Spares`, `bin\winhttp.dll` и `bin\plugins`. С DefianceLoader — вместо
+двух последних удалить `DefianceLoader\plugins\spares_repair.dll` и `spares_repair.plugin.json`.

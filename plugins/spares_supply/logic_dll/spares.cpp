@@ -9,7 +9,8 @@ namespace {
 // Подставить в инструкцию lea r8,[rax+disp32] функции круга смещение строки материала в таблице:
 // kMaterialSpares (0xE0) перед перерисовкой круга HEMTT Spares, kMaterialAmmo (0x120) - вернуть обратно.
 void setCircleMaterial(uint32_t offset) {
-    // страница с инструкцией сделана записываемой при установке
+    // the instruction was made writable by unprotectCircle: at install (standalone) or just before the first
+    // redraw (DefianceLoader, see redrawSparesCircle)
     *reinterpret_cast<uint32_t*>(g_a.circleLea + 3) = offset;
     FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(g_a.circleLea), 7);
 }
