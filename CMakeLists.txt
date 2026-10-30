@@ -106,10 +106,12 @@ add_custom_target(deploy_defiance
         COMMENT "Install the DefianceLoader plugin and mods into ${GAME_DIR}"
         VERBATIM)
 
-# ---- release: «собрать релиз» -> dist/HEMTT_Spares_v<версия>.zip (+ обложка)
+# ---- release: «собрать релиз» -> dist/: два комплекта отдельной версии (наш winhttp.dll + SparesSupply.dll):
+#   SparesSupplyRepairFramework_v<версия>.zip - только фреймворк (DLL + мини-мод с кругами зоны),
+#   HEMTT_Spares_v<версия>.zip - фреймворк + мод-пример HEMTT Spares (+ обложка и превью для страницы мода).
 # DLL всегда собираются отдельной вложенной сборкой Release, независимо от профиля CLion.
-# release_defiance - то же для плагина DefianceLoader -> dist/HEMTT_Spares_DefianceLoader_v<версия>.zip (та же
-# вложенная сборка, та же папка данных мода; обложка и превью общие).
+# release_defiance - то же для плагина DefianceLoader: SparesSupplyRepairFramework_DefianceLoader_v<версия>.zip и
+# HEMTT_Spares_DefianceLoader_v<версия>.zip (та же вложенная сборка, те же папки данных; обложка и превью общие).
 if (NOT DFD_NESTED_RELEASE)
     set(REL_DIR "${CMAKE_BINARY_DIR}/release")
     # Shared steps of both releases: configure the nested Release build, build the mod data.
@@ -125,27 +127,30 @@ if (NOT DFD_NESTED_RELEASE)
             COMMAND ${Python3_EXECUTABLE} mod/build_mod.py --game "${GAME_DIR}" --out "${REL_MODS}/HEMTT_Spares"
                     --framework-out "${REL_MODS}/${FRAMEWORK_MOD}" --cache "${REL_DIR}/stage/_game_src"
                     --version ${MOD_VERSION})
+    # package.py arguments of each build; adding EXAMPLE_ARGS packs HEMTT Spares too.
+    set(PACKAGE_COMMON --framework-mod "${REL_MODS}/${FRAMEWORK_MOD}" --version ${MOD_VERSION}
+            --out "${CMAKE_SOURCE_DIR}/dist")
+    set(EXAMPLE_ARGS --mod "${REL_MODS}/HEMTT_Spares" --game-src "${REL_DIR}/stage/_game_src/base")
+    set(STANDALONE_ARGS --winhttp "${REL_DIR}/winhttp.dll" --plugin "${REL_DIR}/SparesSupply.dll")
+    set(DEFIANCE_ARGS --defiance --plugin "${REL_DIR}/spares_repair.dll"
+            --manifest "${REL_DIR}/spares_repair.plugin.json")
     add_custom_target(release
             ${REL_CONFIGURE}
             COMMAND ${CMAKE_COMMAND} --build "${REL_DIR}" --target winhttp SparesSupply
             ${REL_MOD_DATA}
-            COMMAND ${Python3_EXECUTABLE} mod/package.py --mod "${REL_MODS}/HEMTT_Spares"
-                    --framework-mod "${REL_MODS}/${FRAMEWORK_MOD}" --winhttp "${REL_DIR}/winhttp.dll" --plugin "${REL_DIR}/SparesSupply.dll"
-                    --game-src "${REL_DIR}/stage/_game_src/base" --version ${MOD_VERSION}
-                    --out "${CMAKE_SOURCE_DIR}/dist"
+            COMMAND ${Python3_EXECUTABLE} mod/package.py ${STANDALONE_ARGS} ${PACKAGE_COMMON}
+            COMMAND ${Python3_EXECUTABLE} mod/package.py ${STANDALONE_ARGS} ${PACKAGE_COMMON} ${EXAMPLE_ARGS}
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-            COMMENT "Release HEMTT Spares ${MOD_VERSION} -> dist/"
+            COMMENT "Release the framework and HEMTT Spares ${MOD_VERSION} -> dist/"
             USES_TERMINAL VERBATIM)
     add_custom_target(release_defiance
             ${REL_CONFIGURE}
             COMMAND ${CMAKE_COMMAND} --build "${REL_DIR}" --target spares_repair
             ${REL_MOD_DATA}
-            COMMAND ${Python3_EXECUTABLE} mod/package.py --defiance --mod "${REL_MODS}/HEMTT_Spares"
-                    --framework-mod "${REL_MODS}/${FRAMEWORK_MOD}" --plugin "${REL_DIR}/spares_repair.dll" --manifest "${REL_DIR}/spares_repair.plugin.json"
-                    --game-src "${REL_DIR}/stage/_game_src/base" --version ${MOD_VERSION}
-                    --out "${CMAKE_SOURCE_DIR}/dist"
+            COMMAND ${Python3_EXECUTABLE} mod/package.py ${DEFIANCE_ARGS} ${PACKAGE_COMMON}
+            COMMAND ${Python3_EXECUTABLE} mod/package.py ${DEFIANCE_ARGS} ${PACKAGE_COMMON} ${EXAMPLE_ARGS}
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-            COMMENT "Release HEMTT Spares ${MOD_VERSION} for DefianceLoader -> dist/"
+            COMMENT "Release the framework and HEMTT Spares ${MOD_VERSION} for DefianceLoader -> dist/"
             USES_TERMINAL VERBATIM)
 endif ()
 
