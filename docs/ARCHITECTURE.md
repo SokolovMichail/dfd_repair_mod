@@ -35,7 +35,18 @@
 
 ## 2. Данные
 
-Собираются скриптом [`mod/build_mod.py`](../mod/build_mod.py) из **текущих** файлов установленной игры.
+Собираются скриптом [`mod/build_mod.py`](../mod/build_mod.py) из **текущих** файлов установленной игры. Модов
+два:
+
+- **мини-мод фреймворка** `mods/SparesSupplyRepairFramework` (SparesSupply & Repair Framework) — только круги
+  зоны: материалы и текстуры, которыми плагин рисует зоны запчастей и ремонта, плюс `mod.json` и иконка
+  (`make_mod_icon.py --framework`). Таблиц игры в нём нет, поэтому он ни с чем не конфликтует. Он нужен любой
+  машине на фреймворке — не только машинам HEMTT Spares;
+- **мод-пример** `mods/HEMTT_Spares` — сами машины (таблица ниже, кроме строк кругов).
+
+Плагин машин не знает: какую машину считать машиной запчастей или ремонта, решают её способности в таблице
+(`support` / `repair` рядом с `ammunition_recharge`). Поэтому свои машины на фреймворке другие моды делают одними
+данными — см. [`MODDING.md`](MODDING.md).
 
 **Откуда берутся файлы.** Игра монтирует слои: `basis.pak → patch_NNN*.pak → распакованная папка basis/`, и каждый
 следующий файл заменяет предыдущий целиком. [`mod/tools/gamefiles.py`](../mod/tools/gamefiles.py) для каждого
@@ -60,9 +71,9 @@
 | `localization/en/...`, `dlc/Resistance/localization/en/...` | имена «HEMTT Spares» / «HEMTT Repair» и тексты статей |
 | `basis/textures/ui/pictures/tech_pic/...fnd_hemmit_spares*.dds` | значки Spares: силуэт HEMTT с ящиком инструментов вместо снарядов ([`make_unit_icons.py`](../mod/art/make_unit_icons.py) `--kind spares`) |
 | `basis/textures/ui/pictures/tech_pic/...fnd_hemmit_repair*.dds` | значки Repair: кран-стрела с крюком (`make_unit_icons.py --kind repair`) |
-| `basis/materials/rounds/sparesRecharge.material` + `textures/cursor_decals/circle_spares.dds` | круг зоны Spares — гаечные ключи. В оригинале этот материал ссылался на безликий `circle_generic.dds` ([`make_circle_spares.py`](../mod/art/make_circle_spares.py)) |
-| `basis/materials/rounds/repairRecharge.material` + `textures/cursor_decals/circle_repair.dds` | круг зоны Repair — скрещённые ключ и молоток ([`make_circle_repair.py`](../mod/art/make_circle_repair.py)). Материал новый, в игре его нет: путь к нему подставляет плагин (5.6) |
-| `mod.json`, `basis/mod_icon.dds` | описание и иконка в меню MODS ([`make_mod_icon.py`](../mod/art/make_mod_icon.py)) |
+| **фреймворк:** `basis/materials/rounds/sparesRecharge.material` + `textures/cursor_decals/circle_spares.dds` | круг зоны Spares — гаечные ключи. В оригинале этот материал ссылался на безликий `circle_generic.dds` ([`make_circle_spares.py`](../mod/art/make_circle_spares.py)) |
+| **фреймворк:** `basis/materials/rounds/repairRecharge.material` + `textures/cursor_decals/circle_repair.dds` | круг зоны Repair — скрещённые ключ и молоток ([`make_circle_repair.py`](../mod/art/make_circle_repair.py)). Материал новый, в игре его нет: путь к нему подставляет плагин (5.6) |
+| `mod.json`, `basis/mod_icon.dds` (у каждого из двух модов свои) | описание и иконка в меню MODS ([`make_mod_icon.py`](../mod/art/make_mod_icon.py); у фреймворка — `--framework`: два круга зоны без машин) |
 
 **Почему `ammunition_recharge,support` / `ammunition_recharge,repair`.** Кнопку F4 игра даёт только машинам с
 боеприпасами или заправщиком, а сам режим F4 работает только с ними. Поэтому обеим машинам нужен компонент
@@ -311,9 +322,17 @@ HEMTT Repair ездит, но ничего не чинит.
 ```
 cmake --build <build> --target release
   ├─ вложенная Release-сборка: winhttp.dll, SparesSupply.dll (-O3, -s, статически, UCRT)
-  ├─ mod/build_mod.py   → <build>/release/stage/mods/HEMTT_Spares
-  └─ mod/package.py     → dist/HEMTT_Spares_v<MOD_VERSION>.zip  (+ _cover.png)
+  ├─ mod/build_mod.py   → <build>/release/stage/mods/{SparesSupplyRepairFramework,HEMTT_Spares}
+  ├─ mod/package.py         → dist/SparesSupplyRepairFramework_v<MOD_VERSION>.zip   (только фреймворк)
+  └─ mod/package.py --mod   → dist/HEMTT_Spares_v<MOD_VERSION>.zip  (фреймворк + пример, + _cover.png, _banner.png)
+cmake --build <build> --target release_defiance
+  └─ то же со spares_repair.dll: SparesSupplyRepairFramework_DefianceLoader_v…zip, HEMTT_Spares_DefianceLoader_v…zip
 ```
+
+Четыре комплекта — для одной страницы мода: игрок берёт фреймворк отдельно (если ставит чужие машины на нём) или
+вместе с HEMTT Spares, в отдельной версии или под DefianceLoader. README игрока у всех один
+([`Dist-readme.md`](Dist-readme.md), варианты — блоками `{IF ...}`), руководство для моддеров
+([`MODDING.md`](MODDING.md)) кладётся во все.
 
 DLL линкуются полностью статически, с системным UCRT, — нужны только `KERNEL32.dll` и `api-ms-win-crt-*`, которые
 есть в любой Windows 10/11 (у MinGW из комплекта CLion статическая `libwinpthread` собрана под UCRT, поэтому
