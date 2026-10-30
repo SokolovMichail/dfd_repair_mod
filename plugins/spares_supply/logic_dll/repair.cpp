@@ -136,7 +136,7 @@ int& g_repairLogs = g_repair.logLines;
 
 void tickRepair(void* ammo, float dt) { core::tickRepair(g_repairPort, g_repair, station(ammo), dt); }
 
-void forgetRepair(void* ammo) { core::forgetRepair(g_repair, station(ammo)); }
+core::RepairPort& repairPort() { return g_repairPort; }
 
 void redrawRepairCircle(void* ammo) { showCircleWithPath(ammo, kRepairMaterial); }
 

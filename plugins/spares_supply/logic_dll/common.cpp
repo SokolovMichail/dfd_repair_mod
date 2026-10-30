@@ -108,23 +108,38 @@ void convertCircle(void* ammo, Kind kind) {
 
 // ---------------------------------------------------------------- перехваты
 
+namespace {
+
+// What core's common F4 rules need, taken from logic.dll. A station is an AmmoRechargerFacet.
+class LogicDllSupplyPort final : public core::SupplyPort {
+public:
+    Kind kind(core::Station* s) override { return kindOf(s); }
+    bool isOn(core::Station* s) override { return spares_supply::isOn(s, kRechargerOffFlag); }
+    void showCircle(core::Station* s, Kind kind) override { convertCircle(s, kind); }
+    void event(const char* what, core::Station* s) override { trace(what, s); }
+};
+
+}  // namespace
+
+core::Ports& ports() {
+    static LogicDllSupplyPort supply;
+    static core::Ports p{supply, sparesPort(), repairPort(), g_repair};
+    return p;
+}
+
 // Перехват AmmoRechargerFacet::activate (слот 14) - режим F4 включён. Сначала оригинал (включает
 // компонент и рисует круг патронов), потом: у HEMTT Spares включить запчасти, у машин мода -
 // перерисовать круг своим материалом.
 void hookAmmoOn(void* f) {
     g_origAmmoOn(f);
-    syncSpares(f, true);
-    Kind k = kindOf(f);
-    if (k == Kind::Repair) trace("repair ON  (with supply mode)", f);
-    convertCircle(f, k);
+    core::onSupplyOn(ports(), station(f));
 }
 // Перехват AmmoRechargerFacet::deactivate (слот 13) - режим F4 выключен. Забываем круг и состояние
 // ремонта этого компонента, вызываем оригинал (убирает круг), у HEMTT Spares выключаем запчасти.
 void hookAmmoOff(void* f) {
     if (void* c = circleOf(f)) g_ownCircles.erase(c);
-    forgetRepair(f);
     g_origAmmoOff(f);
-    syncSpares(f, false);
+    core::onSupplyOff(ports(), station(f));
 }
 
 // Перехват AmmoRechargerFacet::update (слот 10), движок вызывает его каждый кадр. Оригинал раздаёт
@@ -133,20 +148,13 @@ void hookAmmoOff(void* f) {
 // при загрузке сохранения), тоже перекрашиваем.
 void hookAmmoUpdate(void* f, float dt) {
     g_origAmmoUpdate(f, dt);
-    if (!isOn(f, kRechargerOffFlag)) return;
-    // круг, созданный без нас (например, при загрузке сохранения), тоже перекрашиваем
-    if (tickSpares(f, dt)) {
-        convertCircle(f, Kind::Spares);
-    } else if (findFacet(ownerOf(f), g_a.repairVt)) {
-        tickRepair(f, dt);
-        convertCircle(f, Kind::Repair);
-    }
+    core::onSupplyTick(ports(), station(f), dt);
 }
 
 // Перехват AmmoRechargerFacet::canRecharge (слот 17): можно ли дать патроны target. Машины мода патроны
 // не раздают никогда - ни по зоне, ни по приказу; остальным - решает оригинал.
 bool hookAmmoCanRecharge(void* ammo, void* target) {
-    if (kindOf(ammo) != Kind::Ammo) return false;
+    if (!core::handsOutAmmo(kindOf(ammo))) return false;
     return g_origAmmoCanRecharge(ammo, target);
 }
 

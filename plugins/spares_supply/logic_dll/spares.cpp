@@ -14,27 +14,41 @@ void setCircleMaterial(uint32_t offset) {
     FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(g_a.circleLea), 7);
 }
 
+// What core's spare parts rules need, taken from logic.dll. A station is an AmmoRechargerFacet or a
+// RefuellerFacet, a depot - a SparesRechargerFacet.
+class LogicDllSparesPort final : public core::SparesPort {
+public:
+    core::SparesDepot* depotOf(core::Station* s) override { return depot(sparesOf(s)); }
+    bool stationOn(core::Station* s) override { return spares_supply::isOn(s, kRechargerOffFlag); }
+    bool isOn(core::SparesDepot* d) override { return spares_supply::isOn(d, kSparesOffFlag); }
+    // the originals, bypassing our hookSparesOff
+    void turnOn(core::SparesDepot* d) override { g_origSparesOn(d); }
+    void turnOff(core::SparesDepot* d) override { g_origSparesOff(d); }
+    void tick(core::SparesDepot* d, float dt) override { hookSparesUpdate(d, dt); }
+    bool supplyModeActive(core::SparesDepot* d) override {
+        void* owner = ownerOf(d);
+        for (uintptr_t vt : {g_a.ammoVt, g_a.fuelVt}) {
+            void* r = findFacet(owner, vt);
+            if (r && spares_supply::isOn(r, kRechargerOffFlag)) return true;
+        }
+        return false;
+    }
+    void event(const char* what, core::SparesDepot* d) override { trace(what, d); }
+};
+
+LogicDllSparesPort g_sparesPort;
+
 }  // namespace
+
+core::SparesPort& sparesPort() { return g_sparesPort; }
 
 // Компонент запчастей (SparesRechargerFacet) той же машины, что и facet; nullptr, если его нет.
 void* sparesOf(void* facet) {
     return findFacet(ownerOf(facet), g_a.sparesVt);
 }
 
-// Включить (on) или выключить запчасти у той же машины, что и recharger (боеприпасы или заправщик).
-// Вызывается при включении/выключении режима F4. Если запчастей нет или они уже в нужном состоянии -
-// ничего не делает. Вызывает исходные функции, минуя перехват hookSparesOff.
-void syncSpares(void* recharger, bool on) {
-    void* spares = sparesOf(recharger);
-    if (!spares) return;
-    if (on && !isOn(spares, kSparesOffFlag)) {
-        trace("spares ON  (with supply mode)", spares);
-        g_origSparesOn(spares);
-    } else if (!on && isOn(spares, kSparesOffFlag)) {
-        trace("spares OFF (with supply mode)", spares);
-        g_origSparesOff(spares);
-    }
-}
+// Spare parts of the same vehicle as recharger (ammo or refueller) follow F4 mode - core::syncSpares.
+void syncSpares(void* recharger, bool on) { core::syncSpares(g_sparesPort, station(recharger), on); }
 
 bool redrawSparesCircle(void* ammo) {
     if (!g_circleWritable) return false;
@@ -55,13 +69,8 @@ void hookFuelOff(void* f) {
     syncSpares(f, false);
 }
 
-// Режим F4: recharger включён -> тикнуть запчасти той же машины тем же dt. Возвращает компонент запчастей.
-void* tickSpares(void* recharger, float dt) {
-    if (!isOn(recharger, kRechargerOffFlag)) return nullptr;
-    void* spares = sparesOf(recharger);
-    if (spares && isOn(spares, kSparesOffFlag)) hookSparesUpdate(spares, dt);
-    return spares;
-}
+// F4 mode: tick the spare parts of the same vehicle as recharger - core::tickSpares. Returns the component.
+void* tickSpares(void* recharger, float dt) { return core::tickSpares(g_sparesPort, station(recharger), dt); }
 
 // Перехват RefuellerFacet::update (слот 10): оригинал + тик запчастей той же машины в режиме F4.
 void hookFuelUpdate(void* f, float dt) {
@@ -91,14 +100,7 @@ void hookSparesUpdate(void* spares, float dt) {
 // выключает запчасти - если в это время у машины включён режим F4 (боеприпасы или заправщик), выключение
 // пропускаем, иначе раздача по зоне оборвалась бы.
 void hookSparesOff(void* spares) {
-    void* owner = ownerOf(spares);
-    for (uintptr_t vt : {g_a.ammoVt, g_a.fuelVt}) {
-        void* r = findFacet(owner, vt);
-        if (r && isOn(r, kRechargerOffFlag)) {
-            trace("spares OFF skipped (supply mode active)", spares);
-            return;
-        }
-    }
+    if (!core::mayTurnSparesOff(g_sparesPort, depot(spares))) return;
     g_origSparesOff(spares);
 }
 

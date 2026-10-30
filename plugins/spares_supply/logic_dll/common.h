@@ -31,11 +31,12 @@
 #include <vector>
 
 #include "../../../common/patch.h"
-#include "../core/game.h"
+#include "../core/supply.h"
 
 namespace spares_supply {
 
 using dfd::Image;
+using core::Kind;
 
 // Engine pointers <-> core handles. In logic.dll a station is the supply component that runs F4 mode
 // (AmmoRechargerFacet / RefuellerFacet) and a vehicle is the engine's entity object; the core only passes
@@ -139,10 +140,8 @@ void* ownerOf(void* facet);
 bool isOn(void* facet, size_t offFlag);
 void* findFacet(void* entity, uintptr_t vtbl);
 
-// Чем на самом деле занимается машина с компонентом боеприпасов (у машин мода он только ради F4):
-// Spares - есть компонент запчастей (HEMTT Spares), Repair - есть компонент ремонта (HEMTT Repair),
-// Ammo - ни того ни другого (обычный HEMTT Supply и прочие - их не трогаем).
-enum class Kind { Ammo, Spares, Repair };
+// Kind of the vehicle that owns the ammo component: Spares - it has a spare parts component (HEMTT Spares),
+// Repair - a repair component (HEMTT Repair), Ammo - neither (an ordinary HEMTT Supply and the rest).
 Kind kindOf(void* ammo);
 
 void trace(const char* what, void* facet);
@@ -158,6 +157,10 @@ void hookAmmoOn(void* f);
 void hookAmmoOff(void* f);
 void hookAmmoUpdate(void* f, float dt);
 bool hookAmmoCanRecharge(void* ammo, void* target);
+
+// The core's F4 rules wired to logic.dll: the supply port (common.cpp), the spare parts port (spares.cpp),
+// the repair port and state (repair.cpp).
+core::Ports& ports();
 
 // Finding addresses in logic.dll and installing the patches.
 bool resolve(const Image& img);

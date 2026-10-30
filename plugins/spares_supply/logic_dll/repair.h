@@ -66,8 +66,8 @@ extern std::unordered_map<core::Station*, float>& g_armorDebt;
 extern int& g_repairLogs;
 // F4 mode of HEMTT Repair on the ammo component `ammo` - core::tickRepair through the logic.dll port.
 void tickRepair(void* ammo, float dt);
-// Forget the repair state (pulse timer, armor debt) of an ammo component - F4 mode is over.
-void forgetRepair(void* ammo);
+// core::RepairPort over logic.dll.
+core::RepairPort& repairPort();
 // Redraw the HEMTT Repair zone circle with the repairRecharge material.
 void redrawRepairCircle(void* ammo);
 

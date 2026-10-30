@@ -37,6 +37,8 @@ dfd_dll(winhttp)
 # Plugin sources - shared by the DLL and the tests (tests/).
 set(SPARES_SUPPLY_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/core/repair.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/core/spares.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/core/supply.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/common.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/spares.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/repair.cpp")

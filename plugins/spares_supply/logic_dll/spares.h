@@ -19,9 +19,16 @@
 
 #pragma once
 
+#include "../core/spares.h"
 #include "common.h"
 
 namespace spares_supply {
+
+// Engine pointer -> core handle: a spare parts component is a SparesRechargerFacet.
+inline core::SparesDepot* depot(void* facet) { return static_cast<core::SparesDepot*>(facet); }
+
+// core::SparesPort over logic.dll.
+core::SparesPort& sparesPort();
 
 void* sparesOf(void* facet);
 void syncSpares(void* recharger, bool on);
