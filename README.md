@@ -44,7 +44,8 @@
 ```
 CMakeLists.txt         цели сборки (см. ниже), версия мода MOD_VERSION
 .env.example           шаблон локальных настроек -> скопировать в .env
-.run/                  готовые конфигурации запуска CLion: Build release / Deploy to game / Build mod data
+.run/                  готовые конфигурации запуска CLion: Build release / Deploy to game / Build mod data,
+                       Build release (DefianceLoader) / Deploy to game (DefianceLoader)
 common/patch.h         общее для плагинов: лог, поиск по шаблонам и RTTI, набор правок, ожидание загрузки DLL
 loader/                winhttp.dll: прокси системной winhttp.dll + загрузчик bin\plugins\*.dll
 plugins/spares_supply/ SparesSupply.dll (отдельно) и spares_repair.dll (плагин DefianceLoader) - из одних исходников:
@@ -91,8 +92,10 @@ dist/                  результат «собрать релиз» (в git 
 | `deploy` | Ставит в игру: `bin\winhttp.dll`, `bin\plugins\SparesSupply.dll`, `mods\HEMTT_Spares`. Игра должна быть закрыта; мод нужно один раз включить в меню MODS. |
 | `deploy_defiance` | То же для DefianceLoader: `DefianceLoader\plugins\spares_repair.dll` + манифест, `mods\HEMTT_Spares`. Ставить что-то одно — `deploy` или `deploy_defiance` (см. «DefianceLoader»). |
 | `release` | **Собрать релиз**: отдельная Release-сборка DLL (оптимизация, без отладочной информации) + данные мода + `dist/HEMTT_Spares_v<версия>.zip`, `dist/HEMTT_Spares_v<версия>_cover.png` (1920×1080) и `_banner.png` (1300×372). |
+| `release_defiance` | То же для DefianceLoader: `dist/HEMTT_Spares_DefianceLoader_v<версия>.zip` (`DefianceLoader/plugins/spares_repair.dll` + манифест, `mods/HEMTT_Spares`); обложка и превью — общие с `release`. Упаковка — `mod/package.py --defiance`; README игрока — тот же `docs/Dist-readme.md`, блоки `{IF STANDALONE}` / `{IF DEFIANCE}` попадают только в свой архив. |
 
-В CLion: выбрать конфигурацию **Build release** (или **Deploy to game**) и нажать Run — либо Build → Build Target.
+В CLion: выбрать конфигурацию **Build release** (или **Deploy to game**; для DefianceLoader — те же с пометкой
+**(DefianceLoader)**) и нажать Run — либо Build → Build Target.
 Из консоли:
 
 ```bash

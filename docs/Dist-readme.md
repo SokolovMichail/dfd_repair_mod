@@ -35,38 +35,79 @@ Skirmish: both are available to Founders.
   Tested on the GOG version. The Steam version should work too (see CHECK below).
 * Resistance DLC optional.
 * Evolution DLC optional.
+{IF DEFIANCE}
+* DefianceLoader 1.9.0 or newer, installed in the game folder:
+  https://github.com/DefianceLoader/DefianceLoader
+{END}
 
 ## Installation instructions
+{IF STANDALONE}
 1. Extract the archive into the game folder (the one that contains "bin" and "mods").
    You should get:
    mods\HEMTT_Spares\...
    bin\winhttp.dll
    bin\plugins\SparesSupply.dll
+{END}
+{IF DEFIANCE}
+1. Install DefianceLoader first (see its INSTALL). Then extract this archive into the game
+   folder (the one that contains "bin" and "mods"). You should get:
+   mods\HEMTT_Spares\...
+   DefianceLoader\plugins\spares_repair.dll
+   DefianceLoader\plugins\spares_repair.plugin.json
+   If you had the standalone version of this mod, delete bin\winhttp.dll and
+   bin\plugins\SparesSupply.dll: with both installed, the DefianceLoader plugin stays off.
+{END}
 2. Start the game, open MODS and enable "HEMTT Spares".
 3. Start a new mission (or a new campaign to get the shop rewards).
    Loading a save made after a mission works too - the next shop will have the vehicles.
 
 ## CHECK
+{IF STANDALONE}
 After the game has started, open bin\plugins\SparesSupply.log.
 The last line should be "SparesSupply active".
 If it says "not supported", your game build differs: HEMTT Spares only resupplies
 spare parts on direct order (no F4 zone) and HEMTT Repair does not repair.
 Please report it together with the log.
+{END}
+{IF DEFIANCE}
+After the game has started, open DefianceLoader\logs\defiance-loader.log and look for the
+lines of sokolov.spares-repair: "SparesSupply staged", and the plugin listed as active.
+If it says "not supported", your game build differs: HEMTT Spares only resupplies
+spare parts on direct order (no F4 zone) and HEMTT Repair does not repair.
+Please report it together with the log.
+Settings: section [sokolov.spares-repair] in DefianceLoader\config\settings.ini
+("enabled = false" turns the plugin off, "log = false" keeps its events out of the log).
+{END}
 
 ## WHAT THE DLLs DO
 Zone resupply and repair need a small native plugin, because the game engine cannot do it out of the box.
+{IF STANDALONE}
 bin\winhttp.dll only forwards everything to the Windows winhttp.dll and loads
 bin\plugins\*.dll. SparesSupply.dll changes the game's logic.dll IN MEMORY while the game
 runs. No game file on disk is modified. Before changing anything it checks that the game
 code is exactly what it expects; otherwise it changes nothing.
+{END}
+{IF DEFIANCE}
+spares_repair.dll is a DefianceLoader plugin. It finds the places in the game's logic.dll
+it needs and asks DefianceLoader to change them IN MEMORY while the game runs; the loader
+checks that no other plugin changes the same places. No game file on disk is modified.
+Before asking for anything it checks that the game code is exactly what it expects;
+otherwise it changes nothing. If the loader's "supply radius" plugin is on, it sets the
+spare parts zone radius.
+{END}
 
 ## NOTES
 * Single player only. Do not use it in multiplayer.
+{IF DEFIANCE}
+  DefianceLoader does not let the game go online while this plugin is enabled.
+{END}
 * Conflicts with mods that replace the same game files: scripts/species/cars.xml,
   shop_presets.xml, encyclopedia.xml, encyclopedia_dlc.xml, scripts/default_army.toml,
   materials/rounds/sparesRecharge.material, locale/cars.xml, locale/encyclopedia_loc.xml,
   locale/encyclopedia_dlc_loc.xml.
+{IF STANDALONE}
 * Conflicts with other tools that also use bin\winhttp.dll (some trainers).
+{END}
 * Game updates may replace those files; then the mod needs an update too.
 
 ## KNOWN ISSUES
@@ -75,7 +116,13 @@ code is exactly what it expects; otherwise it changes nothing.
 * The mouse pointer changes to yellow when selecting the modded trucks.
 
 ## UNINSTALL
+{IF STANDALONE}
 Disable the mod in MODS, then delete mods\HEMTT_Spares, bin\winhttp.dll and bin\plugins.
+{END}
+{IF DEFIANCE}
+Disable the mod in MODS, then delete mods\HEMTT_Spares and, in DefianceLoader\plugins,
+spares_repair.dll and spares_repair.plugin.json.
+{END}
 Campaign saves that already contain HEMTT Spares or HEMTT Repair may fail to load without the mod.
 
 ## SHOUT_OUTS
@@ -117,36 +164,75 @@ HEMTT Repair - передвижная ремонтная мастерская.
   Проверено на GOG-версии. Steam-версия тоже должна работать (см. ПРОВЕРКА).
 * DLC Resistance - не обязательно.
 * DLC Evolution - не обязательно.
+{IF DEFIANCE}
+* DefianceLoader 1.9.0 или новее, установленный в папку игры:
+  https://github.com/DefianceLoader/DefianceLoader
+{END}
 
 ## УСТАНОВКА
+{IF STANDALONE}
 1. Распакуйте архив в папку игры (ту, где лежат "bin" и "mods"). Должно получиться:
    mods\HEMTT_Spares\...
    bin\winhttp.dll
    bin\plugins\SparesSupply.dll
+{END}
+{IF DEFIANCE}
+1. Сначала установите DefianceLoader (см. его INSTALL). Затем распакуйте этот архив в папку
+   игры (ту, где лежат "bin" и "mods"). Должно получиться:
+   mods\HEMTT_Spares\...
+   DefianceLoader\plugins\spares_repair.dll
+   DefianceLoader\plugins\spares_repair.plugin.json
+   Если стояла отдельная версия мода - удалите bin\winhttp.dll и bin\plugins\SparesSupply.dll:
+   если стоят обе, плагин DefianceLoader не включится.
+{END}
 2. Запустите игру, в меню MODS включите "HEMTT Spares".
 3. Начните новую миссию (или новую кампанию, чтобы получить машины в наградах).
    Можно и загрузить сохранение после миссии - машины появятся в следующем магазине.
 
 ## ПРОВЕРКА
+{IF STANDALONE}
 После запуска игры откройте bin\plugins\SparesSupply.log.
 Последняя строка должна быть "SparesSupply active".
 Если там "not supported" - у вас другая сборка игры: HEMTT Spares пополняет запчасти
 только по приказу (без зоны F4), HEMTT Repair не чинит. Сообщите об этом и приложите лог.
+{END}
+{IF DEFIANCE}
+После запуска игры откройте DefianceLoader\logs\defiance-loader.log и найдите строки
+sokolov.spares-repair: "SparesSupply staged", а сам плагин - в списке активных.
+Если там "not supported" - у вас другая сборка игры: HEMTT Spares пополняет запчасти
+только по приказу (без зоны F4), HEMTT Repair не чинит. Сообщите об этом и приложите лог.
+Настройки: раздел [sokolov.spares-repair] в DefianceLoader\config\settings.ini
+("enabled = false" - выключить плагин, "log = false" - не писать его события в лог).
+{END}
 
 ## ЧТО ДЕЛАЮТ DLL
 Для раздачи по зоне и ремонта нужен маленький нативный плагин: по дефолту движок так не умеет.
+{IF STANDALONE}
 bin\winhttp.dll только пересылает вызовы в системную winhttp.dll и загружает
 bin\plugins\*.dll. SparesSupply.dll меняет logic.dll игры В ПАМЯТИ, пока игра запущена;
 файлы игры на диске не меняются. Перед любой правкой плагин проверяет, что код игры
 в точности тот, который он ожидает; иначе ничего не трогает.
+{END}
+{IF DEFIANCE}
+spares_repair.dll - плагин DefianceLoader. Он находит нужные места в logic.dll игры и просит
+DefianceLoader изменить их В ПАМЯТИ, пока игра запущена; загрузчик следит, чтобы те же места
+не менял другой плагин. Файлы игры на диске не меняются. Прежде чем что-то просить, плагин
+проверяет, что код игры в точности тот, который он ожидает; иначе ничего не трогает. Если
+включён плагин загрузчика "supply radius", радиус зоны запчастей задаёт он.
+{END}
 
 ## ЗАМЕЧАНИЯ
 * Только одиночная игра. В мультиплеере не использовать.
+{IF DEFIANCE}
+  DefianceLoader не пустит игру в сеть, пока этот плагин включён.
+{END}
 * Конфликтует с модами, которые заменяют те же файлы игры: scripts/species/cars.xml,
   shop_presets.xml, encyclopedia.xml, encyclopedia_dlc.xml, scripts/default_army.toml,
   materials/rounds/sparesRecharge.material, locale/cars.xml, locale/encyclopedia_loc.xml,
   locale/encyclopedia_dlc_loc.xml.
+{IF STANDALONE}
 * Конфликтует с другими программами, использующими bin\winhttp.dll (некоторые трейнеры).
+{END}
 * Обновление игры может заменить эти файлы - тогда понадобится обновить и мод.
 
 ## ИЗВЕСТНЫЕ ПРОБЛЕМЫ
@@ -156,7 +242,13 @@ bin\plugins\*.dll. SparesSupply.dll меняет logic.dll игры В ПАМЯ�
 * При выборе машин мода курсор мыши становится жёлтым.
 
 ## УДАЛЕНИЕ
+{IF STANDALONE}
 Выключите мод в MODS, затем удалите mods\HEMTT_Spares, bin\winhttp.dll и папку bin\plugins.
+{END}
+{IF DEFIANCE}
+Выключите мод в MODS, затем удалите mods\HEMTT_Spares и в DefianceLoader\plugins -
+spares_repair.dll и spares_repair.plugin.json.
+{END}
 Сохранения кампании, где уже есть HEMTT Spares или HEMTT Repair, без мода могут не загрузиться.
 
 ## БЛАГОДАРНОСТИ
