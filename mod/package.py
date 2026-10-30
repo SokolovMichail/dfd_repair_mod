@@ -2,13 +2,17 @@
 
 Отдельная версия (наш winhttp.dll + SparesSupply.dll):
 
-    python mod/package.py --mod <собранная папка мода> --winhttp <winhttp.dll> --plugin <SparesSupply.dll>
+    python mod/package.py --mod <собранная папка HEMTT_Spares> --framework-mod <собранная папка мини-мода фреймворка>
+                          --winhttp <winhttp.dll> --plugin <SparesSupply.dll>
                           --game-src <распакованные файлы игры, слой base> --version 0.1 --out <папка dist>
 
 Плагин DefianceLoader (--defiance: spares_repair.dll + его манифест, без winhttp.dll):
 
-    python mod/package.py --defiance --mod <...> --plugin <spares_repair.dll> --manifest <spares_repair.plugin.json>
-                          --game-src <...> --version 0.1 --out <папка dist>
+    python mod/package.py --defiance --mod <...> --framework-mod <...> --plugin <spares_repair.dll>
+                          --manifest <spares_repair.plugin.json> --game-src <...> --version 0.1 --out <папка dist>
+
+В архив идут оба мода: мини-мод фреймворка (круги зоны) - в mods/SparesSupplyRepairFramework, HEMTT Spares - в
+mods/HEMTT_Spares.
 
 Результат: <out>/HEMTT_Spares_v<версия>.zip (с --defiance - HEMTT_Spares_DefianceLoader_v<версия>.zip),
 <out>/HEMTT_Spares_v<версия>_cover.png (1920x1080) и <out>/HEMTT_Spares_v<версия>_banner.png (1300x372) - обложка
@@ -45,6 +49,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--defiance', action='store_true', help='упаковать плагин DefianceLoader, а не отдельную версию')
     ap.add_argument('--mod', required=True)
+    ap.add_argument('--framework-mod', required=True, help='мини-мод фреймворка (круги зоны)')
     ap.add_argument('--winhttp', help='только для отдельной версии')
     ap.add_argument('--plugin', required=True)
     ap.add_argument('--manifest', help='только с --defiance: spares_repair.plugin.json')
@@ -58,11 +63,17 @@ def main():
         ap.error('нужен --winhttp (или --defiance)')
 
     files = []  # (путь на диске, путь в архиве)
-    mod = os.path.abspath(a.mod)
-    for dirpath, _, names in os.walk(mod):
-        for n in sorted(names):
-            p = os.path.join(dirpath, n)
-            files.append((p, 'mods/HEMTT_Spares/' + os.path.relpath(p, mod).replace('\\', '/')))
+
+    def add_mod(folder, name):
+        """Все файлы собранного мода folder - в архив как mods/<name>/..."""
+        folder = os.path.abspath(folder)
+        for dirpath, _, names in os.walk(folder):
+            for n in sorted(names):
+                p = os.path.join(dirpath, n)
+                files.append((p, f'mods/{name}/' + os.path.relpath(p, folder).replace('\\', '/')))
+
+    add_mod(a.framework_mod, 'SparesSupplyRepairFramework')
+    add_mod(a.mod, 'HEMTT_Spares')
     if a.defiance:  # DefianceLoader берёт плагин вместе с манифестом из DefianceLoader\plugins
         files += [(a.plugin, 'DefianceLoader/plugins/spares_repair.dll'),
                   (a.manifest, 'DefianceLoader/plugins/spares_repair.plugin.json')]

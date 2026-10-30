@@ -44,6 +44,7 @@ Skirmish: both are available to Founders.
 {IF STANDALONE}
 1. Extract the archive into the game folder (the one that contains "bin" and "mods").
    You should get:
+   mods\SparesSupplyRepairFramework\...
    mods\HEMTT_Spares\...
    bin\winhttp.dll
    bin\plugins\SparesSupply.dll
@@ -51,13 +52,15 @@ Skirmish: both are available to Founders.
 {IF DEFIANCE}
 1. Install DefianceLoader first (see its INSTALL). Then extract this archive into the game
    folder (the one that contains "bin" and "mods"). You should get:
+   mods\SparesSupplyRepairFramework\...
    mods\HEMTT_Spares\...
    DefianceLoader\plugins\spares_repair.dll
    DefianceLoader\plugins\spares_repair.plugin.json
    If you had the standalone version of this mod, delete bin\winhttp.dll and
    bin\plugins\SparesSupply.dll: with both installed, the DefianceLoader plugin stays off.
 {END}
-2. Start the game, open MODS and enable "HEMTT Spares".
+2. Start the game, open MODS and enable both "SparesSupply & Repair Framework" (the zone circles)
+   and "HEMTT Spares" (the vehicles).
 3. Start a new mission (or a new campaign to get the shop rewards).
    Loading a save made after a mission works too - the next shop will have the vehicles.
 
@@ -117,11 +120,12 @@ spare parts zone radius.
 
 ## UNINSTALL
 {IF STANDALONE}
-Disable the mod in MODS, then delete mods\HEMTT_Spares, bin\winhttp.dll and bin\plugins.
+Disable both mods in MODS, then delete mods\HEMTT_Spares, mods\SparesSupplyRepairFramework,
+bin\winhttp.dll and bin\plugins.
 {END}
 {IF DEFIANCE}
-Disable the mod in MODS, then delete mods\HEMTT_Spares and, in DefianceLoader\plugins,
-spares_repair.dll and spares_repair.plugin.json.
+Disable both mods in MODS, then delete mods\HEMTT_Spares, mods\SparesSupplyRepairFramework and,
+in DefianceLoader\plugins, spares_repair.dll and spares_repair.plugin.json.
 {END}
 Campaign saves that already contain HEMTT Spares or HEMTT Repair may fail to load without the mod.
 
@@ -172,6 +176,7 @@ HEMTT Repair - передвижная ремонтная мастерская.
 ## УСТАНОВКА
 {IF STANDALONE}
 1. Распакуйте архив в папку игры (ту, где лежат "bin" и "mods"). Должно получиться:
+   mods\SparesSupplyRepairFramework\...
    mods\HEMTT_Spares\...
    bin\winhttp.dll
    bin\plugins\SparesSupply.dll
@@ -179,13 +184,15 @@ HEMTT Repair - передвижная ремонтная мастерская.
 {IF DEFIANCE}
 1. Сначала установите DefianceLoader (см. его INSTALL). Затем распакуйте этот архив в папку
    игры (ту, где лежат "bin" и "mods"). Должно получиться:
+   mods\SparesSupplyRepairFramework\...
    mods\HEMTT_Spares\...
    DefianceLoader\plugins\spares_repair.dll
    DefianceLoader\plugins\spares_repair.plugin.json
    Если стояла отдельная версия мода - удалите bin\winhttp.dll и bin\plugins\SparesSupply.dll:
    если стоят обе, плагин DefianceLoader не включится.
 {END}
-2. Запустите игру, в меню MODS включите "HEMTT Spares".
+2. Запустите игру, в меню MODS включите оба мода: "SparesSupply & Repair Framework" (круги зон)
+   и "HEMTT Spares" (машины).
 3. Начните новую миссию (или новую кампанию, чтобы получить машины в наградах).
    Можно и загрузить сохранение после миссии - машины появятся в следующем магазине.
 
@@ -243,11 +250,12 @@ DefianceLoader изменить их В ПАМЯТИ, пока игра запу
 
 ## УДАЛЕНИЕ
 {IF STANDALONE}
-Выключите мод в MODS, затем удалите mods\HEMTT_Spares, bin\winhttp.dll и папку bin\plugins.
+Выключите оба мода в MODS, затем удалите mods\HEMTT_Spares, mods\SparesSupplyRepairFramework,
+bin\winhttp.dll и папку bin\plugins.
 {END}
 {IF DEFIANCE}
-Выключите мод в MODS, затем удалите mods\HEMTT_Spares и в DefianceLoader\plugins -
-spares_repair.dll и spares_repair.plugin.json.
+Выключите оба мода в MODS, затем удалите mods\HEMTT_Spares, mods\SparesSupplyRepairFramework
+и в DefianceLoader\plugins - spares_repair.dll и spares_repair.plugin.json.
 {END}
 Сохранения кампании, где уже есть HEMTT Spares или HEMTT Repair, без мода могут не загрузиться.
 
