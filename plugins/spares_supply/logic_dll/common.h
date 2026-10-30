@@ -194,6 +194,10 @@ bool hookAmmoCanRecharge(void* ammo, void* target);
 core::Ports& ports();
 
 // Finding addresses in logic.dll and installing the patches.
+// false - leave the spare parts search radius alone: do not look for its instruction, do not patch it (another
+// mod owns it - DefianceLoader's defiance.supply-radius). HEMTT Spares then hands out spare parts at that mod's
+// radius instead of supplyRadius. Set before resolve(); true by default.
+extern bool g_sparesRadius;
 bool resolve(const Image& img);
 
 // Where install() sends the plugin's writes to logic.dll. The standalone DLL writes them itself, all or nothing

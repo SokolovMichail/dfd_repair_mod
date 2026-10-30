@@ -11,6 +11,7 @@
 // in differ.
 
 #include <memory>
+#include <string>
 
 #include "../../../third_party/defiance/defiance.h"
 #include "common.h"
@@ -25,6 +26,8 @@ namespace {
 
 // Must match "id" in spares_repair.plugin.json: the loader checks it, and settings are looked up by it.
 constexpr const char kPluginId[] = "sokolov.spares-repair";
+// DefianceLoader's own plugin that patches the same spare parts radius instruction (off by default).
+constexpr const char kSupplyRadiusId[] = "defiance.supply-radius";
 
 const DefianceApi* g_api = nullptr;
 
@@ -35,6 +38,24 @@ void toLoader(const char* line) { g_api->log(DEFIANCE_LOG_INFO, line); }
 bool setting(const char* key, bool fallback) {
     const char* v = g_api->config_get(kPluginId, key);
     return v ? strcmp(v, "true") == 0 : fallback;
+}
+
+// The loaded module the code at addr belongs to; nullptr - none (not a module's memory).
+HMODULE moduleAt(const void* addr) {
+    HMODULE m = nullptr;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       static_cast<LPCWSTR>(addr), &m);
+    return m;
+}
+// A module's file name without the folder, e.g. "SparesSupply.dll".
+std::string moduleName(HMODULE m) {
+    wchar_t path[MAX_PATH];
+    DWORD n = GetModuleFileNameW(m, path, MAX_PATH);
+    const wchar_t* name = path + n;
+    while (name > path && name[-1] != L'\\') --name;
+    char utf8[MAX_PATH * 3];
+    int len = WideCharToMultiByte(CP_UTF8, 0, name, -1, utf8, sizeof utf8, nullptr, nullptr);
+    return len > 0 ? utf8 : "?";
 }
 
 // The loader's Patcher. apply() checks every write the way dfd::PatchSet does, then asks the loader for each
@@ -70,7 +91,16 @@ public:
             if (ok && it.prologue)
                 ok = it.savedValue && Image::matches(reinterpret_cast<uintptr_t>(it.savedValue), it.prologue);
             if (!ok) {
-                g_log("verify FAILED: %s at RVA %08X - nothing patched", it.what, img_.rva(it.at));
+                // A slot that points outside logic.dll was redirected by another mod - most likely the
+                // standalone SparesSupply.dll, which patches logic.dll the moment it loads, before any plugin.
+                HMODULE owner = it.prologue && it.savedValue ? moduleAt(it.savedValue) : nullptr;
+                if (owner && reinterpret_cast<uintptr_t>(owner) != img_.base())
+                    g_log("verify FAILED: %s at RVA %08X already points into %s - another mod patched it first "
+                          "(both SparesSupply builds installed? remove bin\\plugins\\SparesSupply.dll) - nothing "
+                          "patched",
+                          it.what, img_.rva(it.at), moduleName(owner).c_str());
+                else
+                    g_log("verify FAILED: %s at RVA %08X - nothing patched", it.what, img_.rva(it.at));
                 return false;
             }
         }
@@ -117,6 +147,11 @@ int32_t init(const DefianceApi* api) {
     g_logEvents = setting("log", true);
     g_log("SparesSupply " SPARES_SUPPLY_VERSION " as a DefianceLoader plugin; event log %s",
           g_logEvents ? "on" : "off");
+    // defiance.supply-radius rewrites the same radius instruction; when it is on, it owns the radius and we
+    // leave it alone (two writes to one place would get one of the plugins refused). Not installed - null.
+    const char* supplyRadius = api->config_get(kSupplyRadiusId, "enabled");
+    g_sparesRadius = !(supplyRadius && strcmp(supplyRadius, "true") == 0);
+    if (!g_sparesRadius) g_log("%s is enabled: it sets the spare parts radius", kSupplyRadiusId);
 
     void* base = api->module_base("logic.dll");
     if (!base) {

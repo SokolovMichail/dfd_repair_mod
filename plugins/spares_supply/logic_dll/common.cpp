@@ -10,6 +10,7 @@
 namespace spares_supply {
 
 Addr g_a{};
+bool g_sparesRadius = true;
 
 // Отпустить сильную ссылку, полученную от движка (как делает он сам): уменьшить счётчик и, если он
 // дошёл до нуля, вызвать освобождение (слот +0x10 блока).
@@ -225,7 +226,7 @@ bool resolve(const Image& img) {
     if (g_a.repairBlocksAmmo.size() != 2)
         g_log("signature 'repair blocks ammo': %zu matches (need 2)", g_a.repairBlocksAmmo.size());
 
-    g_a.radiusLoad = findOne(img, "spares radius load", kSigSparesRadiusLoad);
+    if (g_sparesRadius) g_a.radiusLoad = findOne(img, "spares radius load", kSigSparesRadiusLoad);
     if (uintptr_t use = findOne(img, "supplyRadius use", kSigSupplyRadiusUse)) g_a.supplyRadius = ripTarget(use, 4, 8);
 
     g_a.showCircle = findOne(img, "ammo show circle", kSigShowCircle);
@@ -258,9 +259,9 @@ bool resolve(const Image& img) {
           rva(g_a.materialTable));
 
     return g_a.ammoVt && g_a.fuelVt && g_a.sparesVt && g_a.repairVt && g_a.modulesVt &&
-           g_a.supportBlocksAmmo.size() == 2 && g_a.repairBlocksAmmo.size() == 2 && g_a.radiusLoad &&
-           g_a.supplyRadius && g_a.showCircle && g_a.circleLea && g_a.materialTable && g_a.incHealth &&
-           g_a.diplomacy;
+           g_a.supportBlocksAmmo.size() == 2 && g_a.repairBlocksAmmo.size() == 2 &&
+           (g_a.radiusLoad || !g_sparesRadius) && g_a.supplyRadius && g_a.showCircle && g_a.circleLea &&
+           g_a.materialTable && g_a.incHealth && g_a.diplomacy;
 }
 
 // Находит адреса (resolve) и отдаёт все правки p одним набором: всё или ничего. Не нашлось или не
@@ -285,8 +286,11 @@ bool install(const Image& img, Patcher& p) {
         return std::vector<uint8_t>{0xF3, 0x0F, 0x10, 0x15, uint8_t(v), uint8_t(v >> 8), uint8_t(v >> 16),
                                     uint8_t(v >> 24)};
     };
-    p.bytes("spares search radius 20 m -> supplyRadius", g_a.radiusLoad, movss(ripTarget(g_a.radiusLoad, 4, 8)),
-            movss(g_a.supplyRadius));
+    if (g_sparesRadius)
+        p.bytes("spares search radius 20 m -> supplyRadius", g_a.radiusLoad, movss(ripTarget(g_a.radiusLoad, 4, 8)),
+                movss(g_a.supplyRadius));
+    else
+        g_log("spares search radius left to another mod (not patched)");
 
     p.vslot("AmmoRechargerFacet::activate", g_a.ammoVt, kSlotActivate, kPrologueRechargerOn, &hookAmmoOn,
             &g_origAmmoOn);
