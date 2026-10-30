@@ -51,6 +51,15 @@ add_library(SparesSupply SHARED ${SPARES_SUPPLY_SOURCES}
 dfd_dll(SparesSupply)
 target_compile_definitions(SparesSupply PRIVATE "SPARES_SUPPLY_VERSION=\"${MOD_VERSION}\"")
 
+# The same plugin for DefianceLoader (DefianceLoader\plugins\spares_repair.dll + spares_repair.plugin.json): the
+# shared sources + the loader's entry point. The manifest is generated next to the DLL, with MOD_VERSION.
+add_library(spares_repair SHARED ${SPARES_SUPPLY_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/defiance.cpp")
+dfd_dll(spares_repair)
+target_compile_definitions(spares_repair PRIVATE "SPARES_SUPPLY_VERSION=\"${MOD_VERSION}\"")
+configure_file(plugins/spares_supply/spares_repair.plugin.json.in
+        "${CMAKE_CURRENT_BINARY_DIR}/spares_repair.plugin.json" @ONLY)
+
 # ---- mod: собрать папку мода (данные) из актуальных файлов игры -> <build>/stage/mods/HEMTT_Spares
 set(MOD_STAGE "${CMAKE_BINARY_DIR}/stage/mods/HEMTT_Spares")
 set(GAME_SRC "${CMAKE_BINARY_DIR}/stage/_game_src")
@@ -70,6 +79,18 @@ add_custom_target(deploy
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/HEMTT_Spares"
         DEPENDS winhttp SparesSupply mod
         COMMENT "Install DLLs and mod into ${GAME_DIR}"
+        VERBATIM)
+
+# ---- deploy_defiance: the same, but as a DefianceLoader plugin (DefianceLoader must be installed). Use one of
+# deploy / deploy_defiance: with both installed, the DefianceLoader plugin refuses to start.
+add_custom_target(deploy_defiance
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/DefianceLoader/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:spares_repair>
+                "${CMAKE_CURRENT_BINARY_DIR}/spares_repair.plugin.json" "${GAME_DIR}/DefianceLoader/plugins/"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/HEMTT_Spares"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/HEMTT_Spares"
+        DEPENDS spares_repair mod
+        COMMENT "Install the DefianceLoader plugin and mod into ${GAME_DIR}"
         VERBATIM)
 
 # ---- release: «собрать релиз» -> dist/HEMTT_Spares_v<версия>.zip (+ обложка)

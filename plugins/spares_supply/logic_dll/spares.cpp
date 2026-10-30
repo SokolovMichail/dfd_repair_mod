@@ -62,6 +62,10 @@ void syncSpares(void* recharger, bool on) { core::syncSpares(g_sparesPort, stati
 // the offset is switched to 0xE0 and back, so every other vehicle keeps drawing its own circle. false - the
 // instruction could not be made writable at install time, the ammo circle stays.
 bool redrawSparesCircle(void* ammo) {
+    if (g_circleDeferred) {
+        g_circleDeferred = false;
+        unprotectCircle();
+    }
     if (!g_circleWritable) return false;
     setCircleMaterial(kMaterialSpares);
     reinterpret_cast<FacetFn>(g_a.showCircle)(ammo);
@@ -97,7 +101,7 @@ void hookSparesUpdate(void* spares, float dt) {
     g_origSparesUpdate(spares, dt);
     static float acc = 0;
     static int lines = 0;
-    if (!isOn(spares, kSparesOffFlag) || lines >= 20) return;
+    if (!g_logEvents || !isOn(spares, kSparesOffFlag) || lines >= 20) return;
     acc += dt;
     if (acc < 1.0f) return;
     acc = 0;

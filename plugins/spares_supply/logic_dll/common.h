@@ -143,6 +143,9 @@ private:
 };
 
 extern Logger g_log;
+// Event lines (F4 events, repair pulses, spare parts diagnostics): false - only install lines are logged. The
+// standalone DLL always logs them; the DefianceLoader plugin takes it from its "log" setting.
+extern bool g_logEvents;
 extern int g_events;    // events written by trace() so far (at most 50 per run)
 
 // Signatures of the hooked engine methods; g_orig* - the original functions, saved when the patches go in,
@@ -173,6 +176,9 @@ void trace(const char* what, void* facet);
 // Zone circle (common.cpp); the materials themselves are drawn by spares.cpp / repair.cpp.
 extern std::unordered_set<void*> g_ownCircles;
 extern bool g_circleWritable;
+// true - unprotectCircle() is still to be done, on the first circle redraw (the DefianceLoader plugin: its
+// patches are written after init, so the lea is made writable later).
+extern bool g_circleDeferred;
 void unprotectCircle();
 void* circleOf(void* ammo);
 void convertCircle(void* ammo, Kind kind);

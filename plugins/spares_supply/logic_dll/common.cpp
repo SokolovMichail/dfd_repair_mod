@@ -18,6 +18,7 @@ void release(RefBlock* rb) {
 }
 
 Logger g_log;
+bool g_logEvents = true;
 
 // Format the line once, then hand it to the sink or the file. Lines longer than the buffer are cut.
 void Logger::operator()(const char* fmt, ...) {
@@ -84,7 +85,7 @@ Kind kindOf(void* ammo) {
 // Записать событие в лог (только первые 50 за запуск, чтобы лог не разрастался): что случилось,
 // с каким компонентом и какой машиной.
 void trace(const char* what, void* facet) {
-    if (g_events < 50) {
+    if (g_logEvents && g_events < 50) {
         ++g_events;
         g_log("%s facet=%p owner=%p", what, facet, ownerOf(facet));
     }
@@ -95,6 +96,7 @@ void trace(const char* what, void* facet) {
 // Круги, уже перерисованные своим материалом.
 std::unordered_set<void*> g_ownCircles;
 bool g_circleWritable = false;
+bool g_circleDeferred = false;
 
 // Объект нарисованного круга зоны у компонента боеприпасов ([ammo+0x50]); nullptr, если круга нет.
 void* circleOf(void* ammo) {
