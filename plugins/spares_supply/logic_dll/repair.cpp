@@ -124,11 +124,6 @@ int& sparesOfModules(void* modules) {
     return *reinterpret_cast<int*>(static_cast<char*>(modules) + kModulesSpares);
 }
 
-Repaired repairVehicle(void* modules, Stock stock) {
-    EngineModules m(modules);
-    return core::repairVehicle(m, stock);
-}
-
 core::RepairState g_repair;
 std::unordered_map<core::Station*, float>& g_repairTimers = g_repair.timers;
 std::unordered_map<core::Station*, float>& g_armorDebt = g_repair.debt;

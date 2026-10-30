@@ -469,230 +469,6 @@ TEST_CASE_FIXTURE(Engine, "Leaving F4 resets the repair timer and debt") {
     CHECK(g_armorDebt.count(station(r.ammo.p())) == 0);
 }
 
-// ================================================================ paying with spare parts
-
-TEST_CASE("Payment: a fractional price accumulates, whole spare parts are taken from stock") {
-    // Setup: 10 spare parts in stock, no debt.
-    int spares = 10;
-    float debt = 0;
-    Stock stock{spares, debt};
-    Repaired r;
-
-    // Action: pay 2.5, then 0.6.
-    stock.pay(2.5f, r);
-    // Expected: 2 taken (the whole part), 0.5 left as debt.
-    CHECK(spares == 8);
-    CHECK(debt == doctest::Approx(0.5f));
-    CHECK(r.spent == 2);
-    stock.pay(0.6f, r);
-    // 0.5 + 0.6 = 1.1 -> one more taken, 0.1 left as debt.
-    CHECK(spares == 7);
-    CHECK(debt == doctest::Approx(0.1f));
-    CHECK(r.spent == 3);
-}
-
-TEST_CASE("Payment: no more is taken than there is; the rest stays as debt") {
-    // QUIRK: the debt can grow larger than the stock - it just waits for a resupply.
-    int spares = 1;
-    float debt = 0;
-    Stock stock{spares, debt};
-    Repaired r;
-    stock.pay(5.0f, r);
-    CHECK(spares == 0);
-    CHECK(debt == doctest::Approx(4.0f));
-    CHECK(r.spent == 1);
-}
-
-// ================================================================ repairing one vehicle
-
-namespace {
-
-// One repair pulse of vehicle target paid from stock `stock` (debt - debt).
-Repaired pulse(Facet& target, int& stock, float& debt) { return repairVehicle(target.p(), Stock{stock, debt}); }
-
-}  // namespace
-
-TEST_CASE_FIXTURE(Engine, "Module repair: +2% of max per pulse, through the engine's incHealth") {
-    // Setup: a module at 50 of 100, 1000 in stock.
-    Damaged d;
-    int stock = 1000;
-    float debt = 0;
-
-    Repaired r = pulse(d.modules, stock, debt);
-
-    // Expected: +2 health (2% of 100), via incHealth of module #0; 2 spare parts paid.
-    REQUIRE(g_incHealth.size() == 1);
-    CHECK(g_incHealth[0].modules == d.modules.p());
-    CHECK(g_incHealth[0].index == 0u);
-    CHECK(g_incHealth[0].amount == 2);
-    CHECK(moduleHp(d.modules, 0) == 52);
-    CHECK(r.health == 2);
-    CHECK(r.spent == 2);
-    CHECK(stock == 998);
-    // The vehicle's total health was recalculated by the engine (incHealth).
-    CHECK(totalHp(d.modules) == 52);
-}
-
-TEST_CASE_FIXTURE(Engine, "Module repair: the repaired vehicle's own spare parts are not spent") {
-    // incHealth is crew repair, it takes spare parts from the vehicle itself. HEMTT Repair pays, so the plugin
-    // gives them back to the target.
-    Damaged d;  // the target has 7 spare parts
-    int stock = 1000;
-    float debt = 0;
-    pulse(d.modules, stock, debt);
-    CHECK(sparesIn(d.modules) == 7);
-}
-
-TEST_CASE_FIXTURE(Engine, "Module repair: at least 1, no more than missing, no more than in stock") {
-    // Each vehicle also has an intact module: a vehicle with total health 0 counts as destroyed.
-    const ModuleSpec intact{100, 100};
-    int stock = 1000;
-    float debt = 0;
-    // 2% of 30 = 0.6 -> rounds down to 0, but it is never less than 1.
-    Damaged small(1, {ModuleSpec{0, 30}, intact});
-    pulse(small.modules, stock, debt);
-    CHECK(moduleHp(small.modules, 0) == 1);
-    // 1 short of the maximum - 1 is added, not 2.
-    Damaged almost(1, {ModuleSpec{99, 100}, intact});
-    pulse(almost.modules, stock, debt);
-    CHECK(moduleHp(almost.modules, 0) == 100);
-    // 2% of 1000 = 20, but only 3 in stock - 3 is added.
-    Damaged big(1, {ModuleSpec{0, 1000}, intact});
-    int small3 = 3;
-    pulse(big.modules, small3, debt);
-    CHECK(moduleHp(big.modules, 0) == 3);
-    CHECK(small3 == 0);
-}
-
-TEST_CASE_FIXTURE(Engine, "Repair: intact modules are left alone, all damaged ones are repaired in one pulse") {
-    Damaged d(1, {ModuleSpec{100, 100}, ModuleSpec{10, 100}, ModuleSpec{20, 50}});
-    int stock = 1000;
-    float debt = 0;
-    Repaired r = pulse(d.modules, stock, debt);
-    REQUIRE(g_incHealth.size() == 2);  // module #0 is intact
-    CHECK(g_incHealth[0].index == 1u);
-    CHECK(g_incHealth[1].index == 2u);
-    CHECK(moduleHp(d.modules, 1) == 12);  // +2% of 100
-    CHECK(moduleHp(d.modules, 2) == 21);  // +2% of 50 = 1
-    CHECK(r.health == 3);
-}
-
-TEST_CASE_FIXTURE(Engine, "Armor: every worn layer gets +2% of its original thickness, 1 spare part per 1 mm") {
-    // Setup: the module is intact; side 0 - layers of 50 and 100 mm with originals of 100 and 100; side 5 -
-    // a layer of 99 of 100 mm.
-    ModuleSpec m;
-    m.armor[0] = {50, 100};
-    m.armorFull[0] = {100, 100};
-    m.armor[5] = {99};
-    m.armorFull[5] = {100};
-    Damaged d(1, {m});
-    int stock = 1000;
-    float debt = 0;
-
-    Repaired r = pulse(d.modules, stock, debt);
-
-    // Expected: 50 -> 52 (+2% of 100); the intact layer untouched; 99 -> 100 (not above the original).
-    CHECK(armorAt(d.modules, 0, 0, 0) == 52.0f);
-    CHECK(armorAt(d.modules, 0, 0, 1) == 100.0f);
-    CHECK(armorAt(d.modules, 0, 5, 0) == 100.0f);
-    CHECK(r.layers == 2);
-    // Price: 2 mm + 1 mm = 3 spare parts.
-    CHECK(r.spent == 3);
-    CHECK(stock == 997);
-    CHECK(g_incHealth.empty());  // the module's health is full
-}
-
-TEST_CASE_FIXTURE(Engine, "Armor: a fractional price accumulates as debt") {
-    // A layer with an original thickness of 25 mm: +0.5 mm per pulse - 0.5 spare parts.
-    ModuleSpec m;
-    m.armor[0] = {10};
-    m.armorFull[0] = {25};
-    Damaged d(1, {m});
-    int stock = 100;
-    float debt = 0;
-    Repaired r = pulse(d.modules, stock, debt);
-    CHECK(armorAt(d.modules, 0, 0, 0) == 10.5f);
-    CHECK(r.spent == 0);  // nothing taken yet
-    CHECK(debt == doctest::Approx(0.5f));
-    r = pulse(d.modules, stock, debt);
-    CHECK(r.spent == 1);  // second pulse: 0.5 + 0.5 = 1 spare part
-    CHECK(stock == 99);
-}
-
-TEST_CASE_FIXTURE(Engine, "Armor: layers with zero original thickness and extra current layers are skipped") {
-    // Side 0: the current thickness has 3 layers, but the module description has 2 (the second with thickness
-    // 0). Only layers present in both lists are used; a layer with original thickness 0 is not repaired.
-    ModuleSpec m;
-    m.armor[0] = {10, 0, 10};
-    m.armorFull[0] = {100, 0};
-    Damaged d(1, {m});
-    int stock = 100;
-    float debt = 0;
-    Repaired r = pulse(d.modules, stock, debt);
-    CHECK(armorAt(d.modules, 0, 0, 0) == 12.0f);
-    CHECK(armorAt(d.modules, 0, 0, 1) == 0.0f);
-    CHECK(armorAt(d.modules, 0, 0, 2) == 10.0f);  // the third layer is not in the description - untouched
-    CHECK(r.layers == 1);
-}
-
-TEST_CASE_FIXTURE(Engine, "A destroyed vehicle (total health 0) is not repaired") {
-    ModuleSpec m{0, 100};
-    m.armor[0] = {10};
-    m.armorFull[0] = {100};
-    Damaged d(1, {m});
-    REQUIRE(totalHp(d.modules) == 0);
-    int stock = 100;
-    float debt = 0;
-    Repaired r = pulse(d.modules, stock, debt);
-    CHECK(g_incHealth.empty());
-    CHECK(armorAt(d.modules, 0, 0, 0) == 10.0f);
-    CHECK(r.health == 0);
-    CHECK(stock == 100);
-}
-
-TEST_CASE_FIXTURE(Engine, "A module without a description is skipped, the next one is repaired") {
-    ModuleSpec broken{10, 100};
-    broken.noDesc = true;
-    Damaged d(1, {broken, ModuleSpec{10, 100}});
-    int stock = 100;
-    float debt = 0;
-    pulse(d.modules, stock, debt);
-    REQUIRE(g_incHealth.size() == 1);
-    CHECK(g_incHealth[0].index == 1u);
-}
-
-TEST_CASE_FIXTURE(Engine, "Stock ran out - the following modules are not repaired") {
-    Damaged d(1, {ModuleSpec{10, 100}, ModuleSpec{10, 100}});
-    int stock = 2;
-    float debt = 0;
-    pulse(d.modules, stock, debt);
-    CHECK(moduleHp(d.modules, 0) == 12);
-    CHECK(moduleHp(d.modules, 1) == 10);
-    CHECK(stock == 0);
-}
-
-TEST_CASE_FIXTURE(Engine, "Stock ran out in the middle of a side - that side's armor is finished on debt") {
-    // QUIRK: stock is checked before each armor side, not before each layer. So the layers of a side that was
-    // started are all repaired, and the missing price goes into debt.
-    ModuleSpec m;
-    m.armor[0] = {50, 50, 50};
-    m.armorFull[0] = {100, 100, 100};
-    m.armor[1] = {50};
-    m.armorFull[1] = {100};
-    Damaged d(1, {m});
-    int stock = 1;
-    float debt = 0;
-    Repaired r = pulse(d.modules, stock, debt);
-    // All 3 layers of side 0 grew by 2 mm (price 6), 1 spare part paid, 5 in debt.
-    for (size_t k = 0; k < 3; ++k) CHECK(armorAt(d.modules, 0, 0, k) == 52.0f);
-    CHECK(r.layers == 3);
-    CHECK(r.spent == 1);
-    CHECK(stock == 0);
-    CHECK(debt == doctest::Approx(5.0f));
-    // Side 1 is no longer touched.
-    CHECK(armorAt(d.modules, 0, 1, 0) == 50.0f);
-}
-
 // ================================================================ repair pulse over the zone
 
 namespace {
@@ -834,6 +610,64 @@ TEST_CASE_FIXTURE(RepairZone, "Repair through F4 mode: HEMTT Repair's ammo updat
     CHECK(moduleHp(d.modules, 0) == 52);
     REQUIRE(g_draws.size() == 1);  // and the repair circle
     CHECK(g_draws[0].material == "materials/rounds/repairRecharge.material");
+}
+
+// ================================================================ reading logic.dll modules
+// The repair rules themselves are tested in core_test. Here: that the binding reads and writes the game's
+// module memory where the rules expect it - health, the right armor layer on the right side, the description.
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll modules: armor is read and written per side and layer") {
+    // Setup: an intact module; side 0 - layers 50 and 100 of 100 mm, side 5 - one layer 99 of 100 mm.
+    ModuleSpec m;
+    m.armor[0] = {50, 100};
+    m.armorFull[0] = {100, 100};
+    m.armor[5] = {99};
+    m.armorFull[5] = {100};
+    Damaged d(1, {m});
+    zone({&d.v.self});
+
+    tick(0.1f);
+
+    // Expected: 50 -> 52, the intact layer untouched, 99 -> 100; 3 spare parts paid.
+    CHECK(armorAt(d.modules, 0, 0, 0) == 52.0f);
+    CHECK(armorAt(d.modules, 0, 0, 1) == 100.0f);
+    CHECK(armorAt(d.modules, 0, 5, 0) == 100.0f);
+    CHECK(sparesIn(r.modules) == 10000 - 3);
+}
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll modules: only layers present in both the module and its description count") {
+    // Side 0: the current thickness has 3 layers, the description has 2.
+    ModuleSpec m;
+    m.armor[0] = {10, 10, 10};
+    m.armorFull[0] = {100, 100};
+    Damaged d(1, {m});
+    zone({&d.v.self});
+    tick(0.1f);
+    CHECK(armorAt(d.modules, 0, 0, 0) == 12.0f);
+    CHECK(armorAt(d.modules, 0, 0, 1) == 12.0f);
+    CHECK(armorAt(d.modules, 0, 0, 2) == 10.0f);  // not in the description - untouched
+}
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll modules: a module without a description is skipped") {
+    ModuleSpec broken{10, 100};
+    broken.noDesc = true;
+    Damaged d(1, {broken, ModuleSpec{10, 100}});
+    zone({&d.v.self});
+    tick(0.1f);
+    REQUIRE(g_incHealth.size() == 1);
+    CHECK(g_incHealth[0].index == 1u);
+    CHECK(g_incHealth[0].modules == d.modules.p());
+    CHECK(g_incHealth[0].amount == 2);
+}
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll modules: the target gets back the spare parts the game's repair took") {
+    // incHealth is crew repair: it takes spare parts from the repaired vehicle. HEMTT Repair pays instead.
+    Damaged d;  // the target has 7 spare parts
+    zone({&d.v.self});
+    tick(0.1f);
+    CHECK(moduleHp(d.modules, 0) == 52);
+    CHECK(totalHp(d.modules) == 52);  // the game recalculated total health
+    CHECK(sparesIn(d.modules) == 7);
 }
 
 // ================================================================ log

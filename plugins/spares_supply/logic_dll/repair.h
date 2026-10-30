@@ -31,9 +31,6 @@
 
 namespace spares_supply {
 
-using core::Repaired;
-using core::Stock;
-
 constexpr const char* kRepairMaterial = "materials/rounds/repairRecharge.material";
 
 // DamageableModulesFacet
@@ -55,9 +52,6 @@ using IncHealthFn = void (*)(void* modules, size_t index, int amount);
 using DiplomacyFn = void* (*)(void* world);
 
 int& sparesOfModules(void* modules);
-
-// One repair pulse of the vehicle whose DamageableModulesFacet is `modules` - core::repairVehicle over it.
-Repaired repairVehicle(void* modules, Stock stock);
 
 // Repair state of all stations (pulse timers, armor debt, log line counter) and short names for its parts.
 extern core::RepairState g_repair;
