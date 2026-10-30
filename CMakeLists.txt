@@ -44,9 +44,21 @@ set(SPARES_SUPPLY_SOURCES ${SPARES_SUPPLY_CORE_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/common.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/spares.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/repair.cpp")
-add_library(SparesSupply SHARED ${SPARES_SUPPLY_SOURCES})
+# The standalone DLL (bin\plugins\SparesSupply.dll, loaded by our winhttp.dll): the shared sources + its entry
+# point. The tests build the shared sources without it.
+add_library(SparesSupply SHARED ${SPARES_SUPPLY_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/standalone.cpp")
 dfd_dll(SparesSupply)
 target_compile_definitions(SparesSupply PRIVATE "SPARES_SUPPLY_VERSION=\"${MOD_VERSION}\"")
+
+# The same plugin for DefianceLoader (DefianceLoader\plugins\spares_repair.dll + spares_repair.plugin.json): the
+# shared sources + the loader's entry point. The manifest is generated next to the DLL, with MOD_VERSION.
+add_library(spares_repair SHARED ${SPARES_SUPPLY_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spares_supply/logic_dll/defiance.cpp")
+dfd_dll(spares_repair)
+target_compile_definitions(spares_repair PRIVATE "SPARES_SUPPLY_VERSION=\"${MOD_VERSION}\"")
+configure_file(plugins/spares_supply/spares_repair.plugin.json.in
+        "${CMAKE_CURRENT_BINARY_DIR}/spares_repair.plugin.json" @ONLY)
 
 # ---- mod: собрать папку мода (данные) из актуальных файлов игры -> <build>/stage/mods/HEMTT_Spares
 set(MOD_STAGE "${CMAKE_BINARY_DIR}/stage/mods/HEMTT_Spares")
@@ -59,7 +71,12 @@ add_custom_target(mod
         USES_TERMINAL VERBATIM)
 
 # ---- deploy: поставить в игру DLL и мод (игра должна быть закрыта)
+# deploy и deploy_defiance ставят одну из двух версий мода и убирают из игры другую (только её файлы: сам
+# DefianceLoader, bin\winhttp.dll и чужие плагины не трогаются), так что между ними можно переключаться для
+# проверки. Обе сразу не нужны: тогда плагин DefianceLoader отказывается работать.
 add_custom_target(deploy
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/DefianceLoader/plugins/spares_repair.dll"
+                "${GAME_DIR}/DefianceLoader/plugins/spares_repair.plugin.json"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/bin/plugins"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:winhttp> "${GAME_DIR}/bin/"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:SparesSupply> "${GAME_DIR}/bin/plugins/"
@@ -69,26 +86,57 @@ add_custom_target(deploy
         COMMENT "Install DLLs and mod into ${GAME_DIR}"
         VERBATIM)
 
+# ---- deploy_defiance: the same, but as a DefianceLoader plugin (DefianceLoader must be installed). Removes the
+# standalone plugin bin\plugins\SparesSupply.dll; bin\winhttp.dll stays (without plugins it only forwards calls).
+add_custom_target(deploy_defiance
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SparesSupply.dll"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/DefianceLoader/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:spares_repair>
+                "${CMAKE_CURRENT_BINARY_DIR}/spares_repair.plugin.json" "${GAME_DIR}/DefianceLoader/plugins/"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/HEMTT_Spares"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/HEMTT_Spares"
+        DEPENDS spares_repair mod
+        COMMENT "Install the DefianceLoader plugin and mod into ${GAME_DIR}"
+        VERBATIM)
+
 # ---- release: «собрать релиз» -> dist/HEMTT_Spares_v<версия>.zip (+ обложка)
 # DLL всегда собираются отдельной вложенной сборкой Release, независимо от профиля CLion.
+# release_defiance - то же для плагина DefianceLoader -> dist/HEMTT_Spares_DefianceLoader_v<версия>.zip (та же
+# вложенная сборка, та же папка данных мода; обложка и превью общие).
 if (NOT DFD_NESTED_RELEASE)
     set(REL_DIR "${CMAKE_BINARY_DIR}/release")
-    add_custom_target(release
+    # Shared steps of both releases: configure the nested Release build, build the mod data.
+    set(REL_CONFIGURE
             COMMAND ${CMAKE_COMMAND} -S "${CMAKE_SOURCE_DIR}" -B "${REL_DIR}" -G "${CMAKE_GENERATOR}"
                     -DCMAKE_BUILD_TYPE=Release -DDFD_NESTED_RELEASE=ON
                     "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
                     "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}" "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
                     "-DCMAKE_ASM_COMPILER=${CMAKE_ASM_COMPILER}"
-                    "-DPython3_EXECUTABLE=${Python3_EXECUTABLE}" "-DGAME_DIR=${GAME_DIR}"
-            COMMAND ${CMAKE_COMMAND} --build "${REL_DIR}" --target winhttp SparesSupply
+                    "-DPython3_EXECUTABLE=${Python3_EXECUTABLE}" "-DGAME_DIR=${GAME_DIR}")
+    set(REL_MOD_DATA
             COMMAND ${Python3_EXECUTABLE} mod/build_mod.py --game "${GAME_DIR}" --out "${REL_DIR}/stage/mods/HEMTT_Spares"
-                    --cache "${REL_DIR}/stage/_game_src" --version ${MOD_VERSION}
+                    --cache "${REL_DIR}/stage/_game_src" --version ${MOD_VERSION})
+    add_custom_target(release
+            ${REL_CONFIGURE}
+            COMMAND ${CMAKE_COMMAND} --build "${REL_DIR}" --target winhttp SparesSupply
+            ${REL_MOD_DATA}
             COMMAND ${Python3_EXECUTABLE} mod/package.py --mod "${REL_DIR}/stage/mods/HEMTT_Spares"
                     --winhttp "${REL_DIR}/winhttp.dll" --plugin "${REL_DIR}/SparesSupply.dll"
                     --game-src "${REL_DIR}/stage/_game_src/base" --version ${MOD_VERSION}
                     --out "${CMAKE_SOURCE_DIR}/dist"
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
             COMMENT "Release HEMTT Spares ${MOD_VERSION} -> dist/"
+            USES_TERMINAL VERBATIM)
+    add_custom_target(release_defiance
+            ${REL_CONFIGURE}
+            COMMAND ${CMAKE_COMMAND} --build "${REL_DIR}" --target spares_repair
+            ${REL_MOD_DATA}
+            COMMAND ${Python3_EXECUTABLE} mod/package.py --defiance --mod "${REL_DIR}/stage/mods/HEMTT_Spares"
+                    --plugin "${REL_DIR}/spares_repair.dll" --manifest "${REL_DIR}/spares_repair.plugin.json"
+                    --game-src "${REL_DIR}/stage/_game_src/base" --version ${MOD_VERSION}
+                    --out "${CMAKE_SOURCE_DIR}/dist"
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            COMMENT "Release HEMTT Spares ${MOD_VERSION} for DefianceLoader -> dist/"
             USES_TERMINAL VERBATIM)
 endif ()
 

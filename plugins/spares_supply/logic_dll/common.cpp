@@ -1,18 +1,16 @@
 // SparesSupply.dll, shared part: engine object model, F4 mode on the ammo component, zone circle,
-// finding addresses in logic.dll and installing the patches, DLL entry point. Overview - common.h.
+// finding addresses in logic.dll and installing the patches. The DLL entry point is in standalone.cpp.
+// Overview - common.h.
 
 #include "common.h"
 
 #include "repair.h"
 #include "spares.h"
 
-#ifndef SPARES_SUPPLY_VERSION  // задаётся из CMake (MOD_VERSION)
-#define SPARES_SUPPLY_VERSION "dev"
-#endif
-
 namespace spares_supply {
 
 Addr g_a{};
+bool g_sparesRadius = true;
 
 // Отпустить сильную ссылку, полученную от движка (как делает он сам): уменьшить счётчик и, если он
 // дошёл до нуля, вызвать освобождение (слот +0x10 блока).
@@ -20,7 +18,22 @@ void release(RefBlock* rb) {
     if (rb && --rb->strong == 0) vcall<void>(rb, 0x10);
 }
 
-dfd::Log g_log;
+Logger g_log;
+bool g_logEvents = true;
+
+// Format the line once, then hand it to the sink or the file. Lines longer than the buffer are cut.
+void Logger::operator()(const char* fmt, ...) {
+    char line[1024];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(line, sizeof line, fmt, ap);
+    va_end(ap);
+    if (sink_)
+        sink_(line);
+    else
+        file_("%s", line);
+}
+
 int g_events = 0;  // первые события пишем в лог для проверки
 
 FacetFn g_origAmmoOn, g_origAmmoOff, g_origFuelOn, g_origFuelOff, g_origSparesOn, g_origSparesOff;
@@ -73,7 +86,7 @@ Kind kindOf(void* ammo) {
 // Записать событие в лог (только первые 50 за запуск, чтобы лог не разрастался): что случилось,
 // с каким компонентом и какой машиной.
 void trace(const char* what, void* facet) {
-    if (g_events < 50) {
+    if (g_logEvents && g_events < 50) {
         ++g_events;
         g_log("%s facet=%p owner=%p", what, facet, ownerOf(facet));
     }
@@ -84,6 +97,7 @@ void trace(const char* what, void* facet) {
 // Круги, уже перерисованные своим материалом.
 std::unordered_set<void*> g_ownCircles;
 bool g_circleWritable = false;
+bool g_circleDeferred = false;
 
 // Объект нарисованного круга зоны у компонента боеприпасов ([ammo+0x50]); nullptr, если круга нет.
 void* circleOf(void* ammo) {
@@ -212,7 +226,7 @@ bool resolve(const Image& img) {
     if (g_a.repairBlocksAmmo.size() != 2)
         g_log("signature 'repair blocks ammo': %zu matches (need 2)", g_a.repairBlocksAmmo.size());
 
-    g_a.radiusLoad = findOne(img, "spares radius load", kSigSparesRadiusLoad);
+    if (g_sparesRadius) g_a.radiusLoad = findOne(img, "spares radius load", kSigSparesRadiusLoad);
     if (uintptr_t use = findOne(img, "supplyRadius use", kSigSupplyRadiusUse)) g_a.supplyRadius = ripTarget(use, 4, 8);
 
     g_a.showCircle = findOne(img, "ammo show circle", kSigShowCircle);
@@ -245,25 +259,23 @@ bool resolve(const Image& img) {
           rva(g_a.materialTable));
 
     return g_a.ammoVt && g_a.fuelVt && g_a.sparesVt && g_a.repairVt && g_a.modulesVt &&
-           g_a.supportBlocksAmmo.size() == 2 && g_a.repairBlocksAmmo.size() == 2 && g_a.radiusLoad &&
-           g_a.supplyRadius && g_a.showCircle && g_a.circleLea && g_a.materialTable && g_a.incHealth &&
-           g_a.diplomacy;
+           g_a.supportBlocksAmmo.size() == 2 && g_a.repairBlocksAmmo.size() == 2 &&
+           (g_a.radiusLoad || !g_sparesRadius) && g_a.supplyRadius && g_a.showCircle && g_a.circleLea &&
+           g_a.materialTable && g_a.incHealth && g_a.diplomacy;
 }
 
-// Вызывается DllWatcher, когда logic.dll загружена (base - её адрес), до выполнения её кода.
-// Находит адреса (resolve) и ставит все правки одним набором PatchSet: всё или ничего. Не нашлось или не
-// совпало хоть что-то - не меняет ничего, пишет причину в лог. Успех - строка «SparesSupply active».
-void onLogicLoaded(uintptr_t base) {
-    Image img(base);
+// Находит адреса (resolve) и отдаёт все правки p одним набором: всё или ничего. Не нашлось или не
+// совпало хоть что-то - не меняет ничего, пишет причину в лог.
+bool install(const Image& img, Patcher& p) {
+    uintptr_t base = img.base();
     g_log("logic.dll at %p (TimeDateStamp %08X, SizeOfImage %08X)", reinterpret_cast<void*>(base),
           img.timeDateStamp(), img.sizeOfImage());
     if (!resolve(img)) {
         g_log("this logic.dll build is not supported - nothing patched");
-        return;
+        return false;
     }
 
     const std::vector<uint8_t> movR15b1{0x41, 0xB7, 0x01}, nop3{0x90, 0x90, 0x90};
-    dfd::PatchSet p(img);
     p.bytes("cars: support no longer blocks ammunition_recharge", g_a.supportBlocksAmmo[0], movR15b1, nop3);
     p.bytes("tanks: support no longer blocks ammunition_recharge", g_a.supportBlocksAmmo[1], movR15b1, nop3);
     p.bytes("cars: repair no longer blocks ammunition_recharge", g_a.repairBlocksAmmo[0], movR15b1, nop3);
@@ -274,8 +286,11 @@ void onLogicLoaded(uintptr_t base) {
         return std::vector<uint8_t>{0xF3, 0x0F, 0x10, 0x15, uint8_t(v), uint8_t(v >> 8), uint8_t(v >> 16),
                                     uint8_t(v >> 24)};
     };
-    p.bytes("spares search radius 20 m -> supplyRadius", g_a.radiusLoad, movss(ripTarget(g_a.radiusLoad, 4, 8)),
-            movss(g_a.supplyRadius));
+    if (g_sparesRadius)
+        p.bytes("spares search radius 20 m -> supplyRadius", g_a.radiusLoad, movss(ripTarget(g_a.radiusLoad, 4, 8)),
+                movss(g_a.supplyRadius));
+    else
+        g_log("spares search radius left to another mod (not patched)");
 
     p.vslot("AmmoRechargerFacet::activate", g_a.ammoVt, kSlotActivate, kPrologueRechargerOn, &hookAmmoOn,
             &g_origAmmoOn);
@@ -303,33 +318,53 @@ void onLogicLoaded(uintptr_t base) {
     uintptr_t sparesOn = *reinterpret_cast<uintptr_t*>(g_a.sparesVt + 8 * kSlotActivate);
     if (!Image::matches(sparesOn, kPrologueSparesOn)) {
         g_log("verify FAILED: SparesRechargerFacet::activate - nothing patched");
-        return;
+        return false;
     }
     g_origSparesOn = reinterpret_cast<FacetFn>(sparesOn);
     const std::vector<uint8_t> leaAmmo{0x4C, 0x8D, 0x80, 0x20, 0x01, 0x00, 0x00};
     p.bytes("supply circle material lea (verify only)", g_a.circleLea, leaAmmo, leaAmmo);
-    if (!p.apply(g_log)) return;
+    return p.apply();
+}
 
+// The circle material lea is rewritten while the game runs (redrawSparesCircle), so its 7 bytes are made
+// writable once, after the patches are in. Fails - g_circleWritable stays false and spares circles keep the
+// ammo icons; everything else works.
+void unprotectCircle() {
     DWORD old;
     g_circleWritable = VirtualProtect(reinterpret_cast<void*>(g_a.circleLea), 7, PAGE_EXECUTE_READWRITE, &old);
     if (!g_circleWritable)
         g_log("cannot unprotect circle material lea (error %lu) - spares circle keeps ammo icons", GetLastError());
+}
+
+namespace {
+
+// The standalone Patcher: dfd::PatchSet checks every write, then makes them all itself.
+class PatchSetPatcher final : public Patcher {
+public:
+    explicit PatchSetPatcher(const Image& img) : set_(img) {}
+    void bytes(const char* what, uintptr_t at, std::vector<uint8_t> orig, std::vector<uint8_t> repl) override {
+        set_.bytes(what, at, std::move(orig), std::move(repl));
+    }
+    void slot(const char* what, uintptr_t vtable, int slot, const char* prologue, void* hook,
+              void** saved) override {
+        set_.vslot(what, vtable, slot, prologue, hook, saved);
+    }
+    bool apply() override { return set_.apply(g_log.file()); }
+
+private:
+    dfd::PatchSet set_;
+};
+
+}  // namespace
+
+// Вызывается DllWatcher, когда logic.dll загружена (base - её адрес), до выполнения её кода.
+// Ставит все правки сразу (install + PatchSetPatcher). Успех - строка «SparesSupply active».
+void onLogicLoaded(uintptr_t base) {
+    Image img(base);
+    PatchSetPatcher p(img);
+    if (!install(img, p)) return;
+    unprotectCircle();
     g_log("SparesSupply active");
 }
 
-dfd::DllWatcher g_watcher;
-
 }  // namespace spares_supply
-
-using namespace spares_supply;
-
-// Точка входа DLL. Её загружает winhttp.dll (загрузчик) из своего DllMain, т.е. под loader lock Windows:
-// здесь только открываем лог и подписываемся на загрузку logic.dll - вся работа в onLogicLoaded.
-BOOL WINAPI DllMain(HINSTANCE self, DWORD reason, LPVOID) {
-    if (reason != DLL_PROCESS_ATTACH) return TRUE;
-    DisableThreadLibraryCalls(self);
-    g_log.open(self, L"SparesSupply");
-    g_log("SparesSupply " SPARES_SUPPLY_VERSION " loaded, waiting for logic.dll");
-    if (!g_watcher.watch(L"logic.dll", &onLogicLoaded)) g_log("cannot register DLL notification");
-    return TRUE;
-}

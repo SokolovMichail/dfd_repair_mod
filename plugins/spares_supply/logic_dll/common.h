@@ -126,7 +126,26 @@ R vcall(void* obj, size_t offset, A... args) {
 // Give back a strong reference taken from the engine, the way the engine does it (free at zero).
 void release(RefBlock* rb);
 
-extern dfd::Log g_log;  // bin\plugins\SparesSupply.log
+// The plugin's log. By default a file next to the DLL (dfd::Log: bin\plugins\SparesSupply.log); a mod loader
+// can take the lines into its own log instead (sendTo). Writes printf-style, one line per call.
+class Logger {
+public:
+    void open(HMODULE self, const wchar_t* name) { file_.open(self, name); }
+    // Send every line to sink (no time stamp, no newline) instead of the file; nullptr - back to the file.
+    void sendTo(void (*sink)(const char* line)) { sink_ = sink; }
+    void operator()(const char* fmt, ...);
+    // The file itself, for dfd::PatchSet (it logs there directly; only the standalone DLL uses it).
+    dfd::Log& file() { return file_; }
+
+private:
+    dfd::Log file_;
+    void (*sink_)(const char*) = nullptr;
+};
+
+extern Logger g_log;
+// Event lines (F4 events, repair pulses, spare parts diagnostics): false - only install lines are logged. The
+// standalone DLL always logs them; the DefianceLoader plugin takes it from its "log" setting.
+extern bool g_logEvents;
 extern int g_events;    // events written by trace() so far (at most 50 per run)
 
 // Signatures of the hooked engine methods; g_orig* - the original functions, saved when the patches go in,
@@ -157,6 +176,10 @@ void trace(const char* what, void* facet);
 // Zone circle (common.cpp); the materials themselves are drawn by spares.cpp / repair.cpp.
 extern std::unordered_set<void*> g_ownCircles;
 extern bool g_circleWritable;
+// true - unprotectCircle() is still to be done, on the first circle redraw (the DefianceLoader plugin: its
+// patches are written after init, so the lea is made writable later).
+extern bool g_circleDeferred;
+void unprotectCircle();
 void* circleOf(void* ammo);
 void convertCircle(void* ammo, Kind kind);
 
@@ -171,7 +194,37 @@ bool hookAmmoCanRecharge(void* ammo, void* target);
 core::Ports& ports();
 
 // Finding addresses in logic.dll and installing the patches.
+// false - leave the spare parts search radius alone: do not look for its instruction, do not patch it (another
+// mod owns it - DefianceLoader's defiance.supply-radius). HEMTT Spares then hands out spare parts at that mod's
+// radius instead of supplyRadius. Set before resolve(); true by default.
+extern bool g_sparesRadius;
 bool resolve(const Image& img);
+
+// Where install() sends the plugin's writes to logic.dll. The standalone DLL writes them itself, all or nothing
+// (dfd::PatchSet); a mod loader may want to own every write instead. install() queues the writes with bytes()
+// and vslot(), then calls apply() once.
+class Patcher {
+public:
+    virtual ~Patcher() = default;
+    // Replace bytes at `at`: orig must be what is there now, repl is what to write (orig == repl only checks).
+    virtual void bytes(const char* what, uintptr_t at, std::vector<uint8_t> orig, std::vector<uint8_t> repl) = 0;
+    // Point vtable slot `slot` at hook. The function now in the slot must start with prologue; *saved gets it
+    // (the original, for the hook to call).
+    virtual void slot(const char* what, uintptr_t vtable, int slot, const char* prologue, void* hook,
+                      void** saved) = 0;
+    // Check every queued write, then make them all, or none. false - nothing written (the reason is logged).
+    virtual bool apply() = 0;
+
+    // slot() for a typed hook and its typed original.
+    template <class Fn>
+    void vslot(const char* what, uintptr_t vtable, int index, const char* prologue, Fn hook, Fn* saved) {
+        slot(what, vtable, index, prologue, reinterpret_cast<void*>(hook), reinterpret_cast<void**>(saved));
+    }
+};
+
+// Find everything in logic.dll (resolve) and send all the plugin's writes to p. true - p accepted them all.
+bool install(const Image& img, Patcher& p);
+// The standalone way: install() with the writes made at once by dfd::PatchSet.
 void onLogicLoaded(uintptr_t base);
 
 }  // namespace spares_supply

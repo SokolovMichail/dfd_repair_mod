@@ -127,7 +127,9 @@ public:
         void* f = findFacet(v, g_a.modulesVt);
         return f ? std::make_unique<EngineModules>(f) : nullptr;
     }
-    void log(const char* line) override { g_log("%s", line); }
+    void log(const char* line) override {
+        if (g_logEvents) g_log("%s", line);
+    }
     // Events go through trace(): the first 50 per run, with the facet and owner addresses.
     void event(const char* what, core::Station* s) override { trace(what, s); }
 };
