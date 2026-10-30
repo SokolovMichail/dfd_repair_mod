@@ -52,6 +52,8 @@ HEMTT Repair - a mobile repair workshop.
 Skirmish: both are available to Founders.
 {END}
 
+Making your own spare parts or repair vehicles: see SparesSupplyRepairFramework_MODDING.txt.
+
 
 ## REQUIREMENTS
 * Terminator: Dark Fate - Defiance 1.09.1221 or newer, Windows 10/11 64-bit.
@@ -235,6 +237,9 @@ HEMTT Repair - передвижная ремонтная мастерская.
 
 Скирмиш: обе доступны Основателям (Founders).
 {END}
+
+Как сделать свои машины снабжения запчастями или ремонта: см. SparesSupplyRepairFramework_MODDING.txt
+(на английском).
 
 
 ## ТРЕБОВАНИЯ

@@ -87,6 +87,8 @@ def main():
                   (a.plugin, 'bin/plugins/SparesSupply.dll')]
     base = 'HEMTT_Spares' if a.mod else FRAMEWORK
     files.append((os.path.join(HERE, '..', 'docs', 'Dist-readme.md'), f'{base}_README.txt'))
+    # руководство для моддеров - во всех комплектах
+    files.append((os.path.join(HERE, '..', 'docs', 'MODDING.md'), f'{FRAMEWORK}_MODDING.txt'))
     missing = [p for p, _ in files if not os.path.isfile(p)]
     if missing:
         sys.exit('нет файлов: ' + ', '.join(missing))
