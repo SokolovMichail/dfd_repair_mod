@@ -17,7 +17,21 @@ void release(RefBlock* rb) {
     if (rb && --rb->strong == 0) vcall<void>(rb, 0x10);
 }
 
-dfd::Log g_log;
+Logger g_log;
+
+// Format the line once, then hand it to the sink or the file. Lines longer than the buffer are cut.
+void Logger::operator()(const char* fmt, ...) {
+    char line[1024];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(line, sizeof line, fmt, ap);
+    va_end(ap);
+    if (sink_)
+        sink_(line);
+    else
+        file_("%s", line);
+}
+
 int g_events = 0;  // первые события пишем в лог для проверки
 
 FacetFn g_origAmmoOn, g_origAmmoOff, g_origFuelOn, g_origFuelOff, g_origSparesOn, g_origSparesOff;
@@ -329,7 +343,7 @@ public:
               void** saved) override {
         set_.vslot(what, vtable, slot, prologue, hook, saved);
     }
-    bool apply() override { return set_.apply(g_log); }
+    bool apply() override { return set_.apply(g_log.file()); }
 
 private:
     dfd::PatchSet set_;

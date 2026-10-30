@@ -126,7 +126,23 @@ R vcall(void* obj, size_t offset, A... args) {
 // Give back a strong reference taken from the engine, the way the engine does it (free at zero).
 void release(RefBlock* rb);
 
-extern dfd::Log g_log;  // bin\plugins\SparesSupply.log
+// The plugin's log. By default a file next to the DLL (dfd::Log: bin\plugins\SparesSupply.log); a mod loader
+// can take the lines into its own log instead (sendTo). Writes printf-style, one line per call.
+class Logger {
+public:
+    void open(HMODULE self, const wchar_t* name) { file_.open(self, name); }
+    // Send every line to sink (no time stamp, no newline) instead of the file; nullptr - back to the file.
+    void sendTo(void (*sink)(const char* line)) { sink_ = sink; }
+    void operator()(const char* fmt, ...);
+    // The file itself, for dfd::PatchSet (it logs there directly; only the standalone DLL uses it).
+    dfd::Log& file() { return file_; }
+
+private:
+    dfd::Log file_;
+    void (*sink_)(const char*) = nullptr;
+};
+
+extern Logger g_log;
 extern int g_events;    // events written by trace() so far (at most 50 per run)
 
 // Signatures of the hooked engine methods; g_orig* - the original functions, saved when the patches go in,
