@@ -682,9 +682,3 @@ TEST_CASE_FIXTURE(SupplyScene, "Every F4 frame: HEMTT Spares ticks spare parts, 
     onSupplyTick(a.ports, a.s, 0.25f);
     CHECK(a.supply.calls.empty());
 }
-
-TEST_CASE("Only an ordinary HEMTT Supply hands out ammo") {
-    CHECK(handsOutAmmo(Kind::Ammo));
-    CHECK_FALSE(handsOutAmmo(Kind::Spares));
-    CHECK_FALSE(handsOutAmmo(Kind::Repair));
-}

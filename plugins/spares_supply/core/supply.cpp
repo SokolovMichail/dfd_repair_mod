@@ -25,8 +25,8 @@ void onSupplyOff(Ports& p, Station* s) {
     syncSpares(p.spares, s, false);
 }
 
-// Every frame, after the game's own update of the station (which, for the mod's vehicles, hands out nothing:
-// handsOutAmmo is false for them, but still collects the vehicles in the zone).
+// Every frame, after the game's own update of the station (which hands out the vehicle's own ammo, if it has
+// any, and collects the vehicles in the zone).
 void onSupplyTick(Ports& p, Station* s, float dt) {
     if (!p.supply.isOn(s)) return;
     // The game never updates spare parts by itself (only the click order "resupply" does), so switched-on spare
@@ -41,8 +41,5 @@ void onSupplyTick(Ports& p, Station* s, float dt) {
         p.supply.showCircle(s, Kind::Repair);
     }
 }
-
-// The mod's vehicles carry the ammo component only to get the F4 button; their 500 rounds go nowhere.
-bool handsOutAmmo(Kind kind) { return kind == Kind::Ammo; }
 
 }  // namespace spares_supply::core

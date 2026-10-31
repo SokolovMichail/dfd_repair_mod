@@ -32,8 +32,8 @@ TEMPLATE = 'Fnd_HEMTT_ammunition'
 COMMON_DESC = ('A versatile four-axle truck platform with space for various truck beds and modules. ')
 TOW_DESC = '&#10;&#10;Can tow light and heavy trailers except those requiring a fifth wheel mount.'
 
-# Машины мода - копии HEMTT Supply. ammunition_recharge (500) у обеих только ради кнопки F4:
-# патроны они не раздают (плагин). unit_set=light_vehicle - пока тест.
+# Mod vehicles are copies of HEMTT Supply. ammunition_recharge gives them the F4 button; their 500 rounds are
+# handed out as on HEMTT Supply, a small bonus. unit_set=light_vehicle - a test for now.
 UNITS = [
     dict(
         sysname='Fnd_HEMTT_spares',   # в версии 0.1 - Fnd_HEMTT_repair (сохранения 0.1 с этой машиной не загрузятся)

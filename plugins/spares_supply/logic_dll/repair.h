@@ -2,7 +2,7 @@
 //
 // HEMTT Repair (abilities=ammunition_recharge,repair; RepairerFacet - метка, сам ничего не чинит):
 //  7. Убирает запрет «repair блокирует ammunition_recharge» (оба сборщика) - кнопка F4.
-//  8. Патроны такая машина тоже не раздаёт (п. 4).
+//  8. Ammo works as for HEMTT Spares (item 4): HEMTT Repair hands out its own stock too.
 //     RepairerFacet сам является IRechargerFacet (IRepairerFacet наследует его) и создаётся раньше
 //     боеприпасов, поэтому режим F4 включает/выключает именно его. Слоты 14/13 ремонта перехвачены:
 //     флаги ставятся как обычно, а включение дублируется на компонент боеприпасов. Собственный update

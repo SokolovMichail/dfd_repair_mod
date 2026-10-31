@@ -123,7 +123,6 @@ struct Plugin {
         g_a = Addr{};
         g_origAmmoOn = g_origAmmoOff = g_origFuelOn = g_origFuelOff = g_origSparesOn = g_origSparesOff = nullptr;
         g_origRepairOn = g_origRepairOff = nullptr;
-        g_origAmmoCanRecharge = nullptr;
         g_origSparesUpdate = g_origAmmoUpdate = g_origFuelUpdate = g_origRepairUpdate = nullptr;
         g_circleWritable = g_circleDeferred = false;
         g_sparesRadius = g_logEvents = true;
@@ -193,8 +192,8 @@ TEST_CASE_FIXTURE(Plugin, "Intact logic.dll: init asks for the standalone set of
     CHECK(L.pe.snapshot() == before);
     CHECK(loader.logged("SparesSupply staged"));
 
-    // 4 flags + the spare parts radius + 12 vtable slots + the circle lea (claimed, not changed) = 18.
-    CHECK(loader.staged.size() == 18);
+    // 4 flags + the spare parts radius + 11 vtable slots + the circle lea (claimed, not changed) = 17.
+    CHECK(loader.staged.size() == 17);
     for (auto& r : loader.staged)  // each write starts from what is there now
         CHECK(memcmp(reinterpret_cast<void*>(r.at), r.before.data(), r.before.size()) == 0);
 
@@ -209,7 +208,7 @@ TEST_CASE_FIXTURE(Plugin, "Intact logic.dll: init asks for the standalone set of
     // 2) The radius instruction, rewritten to read supplyRadius.
     REQUIRE(loader.at(L.radiusLoad) != nullptr);
 
-    // 3) The 12 slots: from the stock function to the hook.
+    // 3) The 11 slots: from the stock function to the hook.
     struct Slot {
         uintptr_t vt;
         int index;
@@ -218,7 +217,6 @@ TEST_CASE_FIXTURE(Plugin, "Intact logic.dll: init asks for the standalone set of
     for (const Slot& s : {Slot{L.ammoVt, kSlotActivate, L.ammoOn, addr(&hookAmmoOn)},
                           Slot{L.ammoVt, kSlotDeactivate, L.ammoOff, addr(&hookAmmoOff)},
                           Slot{L.ammoVt, kSlotUpdate, L.ammoUpdate, addr(&hookAmmoUpdate)},
-                          Slot{L.ammoVt, kSlotCanRecharge, L.ammoCan, addr(&hookAmmoCanRecharge)},
                           Slot{L.fuelVt, kSlotActivate, L.fuelOn, addr(&hookFuelOn)},
                           Slot{L.fuelVt, kSlotDeactivate, L.fuelOff, addr(&hookFuelOff)},
                           Slot{L.fuelVt, kSlotUpdate, L.fuelUpdate, addr(&hookFuelUpdate)},
@@ -232,7 +230,8 @@ TEST_CASE_FIXTURE(Plugin, "Intact logic.dll: init asks for the standalone set of
         CHECK(r->before == pointerBytes(s.stock));
         CHECK(r->after == pointerBytes(s.hook));
     }
-    // Switching spare parts on is not hooked.
+    // canRecharge and switching spare parts on are not hooked.
+    CHECK(loader.at(slotAt(L.ammoVt, kSlotCanRecharge)) == nullptr);
     CHECK(loader.at(slotAt(L.sparesVt, kSlotActivate)) == nullptr);
 
     // 4) The circle lea: claimed with the same bytes, so no other plugin takes it; the plugin rewrites it
@@ -244,7 +243,6 @@ TEST_CASE_FIXTURE(Plugin, "Intact logic.dll: init asks for the standalone set of
     // The originals are saved already, for when the hooks go live.
     CHECK(addr(g_origAmmoOn) == L.ammoOn);
     CHECK(addr(g_origAmmoUpdate) == L.ammoUpdate);
-    CHECK(addr(g_origAmmoCanRecharge) == L.ammoCan);
     CHECK(addr(g_origSparesOn) == L.sparesOn);
     CHECK(addr(g_origRepairUpdate) == L.repairUpdate);
 }
@@ -355,7 +353,7 @@ TEST_CASE_FIXTURE(Plugin, "supply-radius enabled: the radius is left to it, the 
     FakeLogic::spoil(L.radiusLoad);
 
     REQUIRE(init() == 0);
-    CHECK(loader.staged.size() == 17);
+    CHECK(loader.staged.size() == 16);
     CHECK(loader.at(L.radiusLoad) == nullptr);
     CHECK(loader.logged("defiance.supply-radius is enabled"));
     CHECK(loader.logged("spares search radius left to another mod"));
@@ -365,7 +363,7 @@ TEST_CASE_FIXTURE(Plugin, "supply-radius enabled: the radius is left to it, the 
 TEST_CASE_FIXTURE(Plugin, "supply-radius installed but disabled: the radius is patched as usual") {
     loader.config["defiance.supply-radius/enabled"] = "false";
     REQUIRE(init() == 0);
-    CHECK(loader.staged.size() == 18);
+    CHECK(loader.staged.size() == 17);
     CHECK(loader.at(L.radiusLoad) != nullptr);
 }
 
