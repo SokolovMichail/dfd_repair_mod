@@ -129,6 +129,7 @@ class LogicDllSupplyPort final : public core::SupplyPort {
 public:
     // By the components the vehicle has: spare parts first, then repair (kindOf).
     Kind kind(core::Station* s) override { return kindOf(s); }
+    bool repairs(core::Station* s) override { return findFacet(ownerOf(s), g_a.repairVt) != nullptr; }
     // "Off" flag, byte +0x59; 0 means switched on.
     bool isOn(core::Station* s) override { return spares_supply::isOn(s, kRechargerOffFlag); }
     // Redraws the circle with our material once and remembers it in g_ownCircles (convertCircle).

@@ -186,10 +186,12 @@ public:
 class TestSupplyPort final : public SupplyPort {
 public:
     Kind k = Kind::Ammo;
+    bool repairer = false;  // the vehicle has a repair component
     bool on = true;
     std::vector<std::string> calls;  // "circle <kind>", "event <what>"
 
     Kind kind(Station*) override { return k; }
+    bool repairs(Station*) override { return repairer; }
     bool isOn(Station*) override { return on; }
     void showCircle(Station*, Kind kind) override {
         calls.push_back(kind == Kind::Spares ? "circle spares" : kind == Kind::Repair ? "circle repair" : "circle ammo");
@@ -628,6 +630,7 @@ TEST_CASE_FIXTURE(SupplyScene, "F4 on: spare parts follow, the circle gets the v
     // HEMTT Repair (no spare parts component): an event and the repair circle.
     SupplyScene r;
     r.supply.k = Kind::Repair;
+    r.supply.repairer = true;
     r.spares.hasDepot = false;
     onSupplyOn(r.ports, r.s);
     CHECK(r.supply.calls == std::vector<std::string>{"event repair ON  (with supply mode)", "circle repair"});
@@ -637,6 +640,14 @@ TEST_CASE_FIXTURE(SupplyScene, "F4 on: spare parts follow, the circle gets the v
     a.spares.hasDepot = false;
     onSupplyOn(a.ports, a.s);
     CHECK(a.supply.calls == std::vector<std::string>{"circle ammo"});
+}
+
+TEST_CASE_FIXTURE(SupplyScene, "F4 on, spare parts and repair on one vehicle: both start, the spares circle") {
+    supply.k = Kind::Spares;
+    supply.repairer = true;
+    onSupplyOn(ports, s);
+    CHECK(spares.calls == std::vector<std::string>{"event spares ON  (with supply mode)", "on"});
+    CHECK(supply.calls == std::vector<std::string>{"event repair ON  (with supply mode)", "circle spares"});
 }
 
 TEST_CASE_FIXTURE(SupplyScene, "F4 off: the repair state is forgotten, spare parts follow") {
@@ -667,6 +678,7 @@ TEST_CASE_FIXTURE(SupplyScene, "Every F4 frame: HEMTT Spares ticks spare parts, 
     // HEMTT Repair: a repair pulse and the repair circle.
     SupplyScene r;
     r.supply.k = Kind::Repair;
+    r.supply.repairer = true;
     r.spares.hasDepot = false;
     r.spares.stationIsOn = true;
     VehicleData d = damaged();
@@ -681,4 +693,16 @@ TEST_CASE_FIXTURE(SupplyScene, "Every F4 frame: HEMTT Spares ticks spare parts, 
     a.spares.stationIsOn = true;
     onSupplyTick(a.ports, a.s, 0.25f);
     CHECK(a.supply.calls.empty());
+}
+
+TEST_CASE_FIXTURE(SupplyScene, "Every F4 frame: a vehicle with spare parts and repair does both") {
+    supply.k = Kind::Spares;
+    supply.repairer = true;
+    spares.stationIsOn = spares.depotIsOn = true;
+    VehicleData d = damaged();
+    repair.add(d);
+    onSupplyTick(ports, s, 0.25f);
+    CHECK(spares.calls == std::vector<std::string>{"tick 0.25"});
+    CHECK(d.modules[0].hp == 52);
+    CHECK(supply.calls == std::vector<std::string>{"circle spares"});  // one circle: the spare parts one
 }
