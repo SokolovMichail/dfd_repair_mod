@@ -284,6 +284,24 @@ TEST_CASE_FIXTURE(Engine, "Every F4 frame: the original ammo update, then a spar
     CHECK(g_calls[1].dt == 0.25f);
 }
 
+TEST_CASE_FIXTURE(Engine, "Spare parts and repair on one vehicle: every F4 frame ticks spare parts and repairs") {
+    Vehicle both;
+    Facet& rep = both.add(g_a.repairVt);
+    Facet& ammo = both.add(g_a.ammoVt);
+    Facet& spares = both.add(g_a.sparesVt);
+    both.addModules({ModuleSpec{}}, 10000);
+    Damaged d;
+    both.setTargets(ammo, {&d.v.self});
+    hookRepairOn(rep.p());  // F4 switches the repair component; it forwards to ammo, ammo to spare parts
+    CHECK(isOn(spares.p(), kSparesOffFlag));
+    g_calls.clear();
+
+    hookAmmoUpdate(ammo.p(), 0.25f);
+
+    CHECK(callNames() == std::vector<std::string>{"ammo.update", "spares.update"});
+    CHECK(moduleHp(d.modules, 0) == 52);
+}
+
 TEST_CASE_FIXTURE(Engine, "Outside F4 mode the ammo update is only the original") {
     Spares s;
     Repair r;
@@ -387,28 +405,6 @@ TEST_CASE_FIXTURE(Engine, "Refueller: every F4 frame - the original and a spare 
     CHECK(g_calls[0].what == "fuel.update");
     CHECK(g_calls[1].what == "spares.update");
     CHECK(g_calls[1].dt == 0.2f);
-}
-
-// ================================================================ mod vehicles hand out no ammo
-
-TEST_CASE_FIXTURE(Engine, "canRecharge: HEMTT Spares and HEMTT Repair never hand out ammo") {
-    Spares s;
-    Repair r;
-    Vehicle target;
-    CHECK_FALSE(hookAmmoCanRecharge(s.ammo.p(), &target));
-    CHECK_FALSE(hookAmmoCanRecharge(r.ammo.p(), &target));
-    CHECK(calls("ammo.canRecharge") == 0);  // the original is not even asked
-}
-
-TEST_CASE_FIXTURE(Engine, "canRecharge: for an ordinary HEMTT Supply the game decides") {
-    Supply s;
-    Vehicle target;
-    g_canAnswer = true;
-    CHECK(hookAmmoCanRecharge(s.ammo.p(), &target));
-    CHECK(g_canTarget == &target);  // the same target was passed to the original
-    g_canAnswer = false;
-    CHECK_FALSE(hookAmmoCanRecharge(s.ammo.p(), &target));
-    CHECK(calls("ammo.canRecharge") == 2);
 }
 
 // ================================================================ HEMTT Repair: F4 mode

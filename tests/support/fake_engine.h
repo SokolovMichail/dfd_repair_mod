@@ -393,13 +393,6 @@ inline void origAmmoUpdate(void* f, float dt) { record("ammo.update", f, dt); }
 inline void origFuelUpdate(void* f, float dt) { record("fuel.update", f, dt); }
 inline void origSparesUpdate(void* f, float dt) { record("spares.update", f, dt); }
 inline void origRepairUpdate(void* f, float dt) { record("repair.update", f, dt); }
-inline bool g_canAnswer = true;  // what the original canRecharge answers
-inline void* g_canTarget = nullptr;
-inline bool origAmmoCanRecharge(void* f, void* target) {
-    record("ammo.canRecharge", f);
-    g_canTarget = target;
-    return g_canAnswer;
-}
 
 // Component class vtables: the plugin compares the address at the start of a component with them, but never
 // calls methods through them (it takes the originals from g_orig*). So these are just distinct addresses.
@@ -422,8 +415,6 @@ inline void reset() {
     g_incHealth.clear();
     g_draws.clear();
     g_materialTableCalls = 0;
-    g_canAnswer = true;
-    g_canTarget = nullptr;
     g_supplyRadius = 20.0f;
 
     g_vehicleVtbl[11] = fn(&vehicleFacets);
@@ -457,7 +448,6 @@ inline void reset() {
     g_origSparesOff = &origSparesOff;
     g_origRepairOn = &origRepairOn;
     g_origRepairOff = &origRepairOff;
-    g_origAmmoCanRecharge = &origAmmoCanRecharge;
     g_origAmmoUpdate = &origAmmoUpdate;
     g_origFuelUpdate = &origFuelUpdate;
     g_origSparesUpdate = &origSparesUpdate;

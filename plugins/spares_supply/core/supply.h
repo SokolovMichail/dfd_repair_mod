@@ -1,6 +1,6 @@
 // Common F4 mode ("SUPPLY MODE") rules for the mod's supply vehicles: what happens when a station is switched
-// on, every frame while it is on and when it is switched off, which zone circle it shows and whether it may
-// hand out ammo. The vehicle-specific work is delegated to the spares and repair rules.
+// on, every frame while it is on and when it is switched off, and which zone circle it shows. The
+// vehicle-specific work is delegated to the spares and repair rules.
 #pragma once
 
 #include "game.h"
@@ -15,6 +15,9 @@ public:
     virtual ~SupplyPort() = default;
     // What the station's vehicle is: HEMTT Spares, HEMTT Repair or anything else (Ammo).
     virtual Kind kind(Station* s) = 0;
+    // Does the station's vehicle repair (has a repair component)? Also true for a vehicle of kind Spares that
+    // has both spare parts and repair.
+    virtual bool repairs(Station* s) = 0;
     // Is the station in F4 mode (its supply component switched on)?
     virtual bool isOn(Station* s) = 0;
     // Show the station's zone circle with the material of this kind of vehicle (Ammo - leave it as it is).
@@ -37,12 +40,9 @@ void onSupplyOn(Ports& p, Station* s);
 // The game has just switched the station off (F4 mode off): forget its repair state, spare parts follow.
 void onSupplyOff(Ports& p, Station* s);
 
-// Every frame after the game's own update of the station: while F4 mode is on, HEMTT Spares ticks its spare
-// parts and HEMTT Repair repairs; the circle is repainted if it was created without us (loading a save).
+// Every frame after the game's own update of the station: while F4 mode is on, a vehicle with spare parts ticks
+// them and a vehicle with repair repairs - both, if it has both; the circle is repainted if it was created
+// without us (loading a save).
 void onSupplyTick(Ports& p, Station* s, float dt);
-
-// May a vehicle of this kind hand out ammo? The mod's vehicles never do - neither in the zone nor by order;
-// they carry the ammo component only for the F4 button.
-bool handsOutAmmo(Kind kind);
 
 }  // namespace spares_supply::core

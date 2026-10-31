@@ -32,9 +32,16 @@ and change these cells.
 
 | Cell | Value | Why |
 |---|---|---|
-| `abilities` | `ammunition_recharge,support` | `support` holds and hands out spare parts; `ammunition_recharge` gives the F4 button |
+| `abilities` | `ammunition_recharge,support` | `support` holds and hands out spare parts; `ammunition_recharge` is required, see below |
 | `spares` | the stock, e.g. `10000` | how many spare parts it carries and hands out |
-| `capacity_ammo_recharger` | any value, e.g. `500` | needed by the ammunition part; the vehicle never hands out ammunition |
+| `capacity_ammo_recharger` | `0` | the ammunition it hands out, as HEMTT Supply does; `0` - none |
+
+**Why `ammunition_recharge`.** The game builds the F4 mode around the ammunition component: it gives the F4
+button only to vehicles with ammunition or fuel supply, and the zone circle and the list of vehicles in the
+zone belong to the ammunition component too. The framework hangs the spare parts zone and the repair zone on
+it. So every framework vehicle needs `ammunition_recharge`, even one that hands out no ammunition: give it
+`capacity_ammo_recharger=0`, and F4 still works. With a real stock it supplies ammunition as well (see
+"Spare parts, ammunition and repair at once").
 
 Without the framework the game never builds `ammunition_recharge` next to `support`. Such a vehicle then
 only resupplies spare parts on a direct order, and has no F4 zone.
@@ -43,9 +50,9 @@ only resupplies spare parts on a direct order, and has no F4 zone.
 
 | Cell | Value | Why |
 |---|---|---|
-| `abilities` | `ammunition_recharge,repair` | `repair` marks it as a repair vehicle; `ammunition_recharge` gives the F4 button |
+| `abilities` | `ammunition_recharge,repair` | `repair` marks it as a repair vehicle; `ammunition_recharge` is required, as above |
 | `spares` | the stock, e.g. `10000` | what it pays for the repairs with |
-| `capacity_ammo_recharger` | any value, e.g. `500` | as above |
+| `capacity_ammo_recharger` | `0` | as above |
 
 The repair vehicle:
 - does not repair itself or destroyed vehicles;
@@ -54,14 +61,25 @@ The repair vehicle:
 
 Without the framework it does nothing.
 
+### Spare parts, ammunition and repair at once
+
+One vehicle may do all three: `abilities=ammunition_recharge,support,repair` with a real ammunition stock in
+`capacity_ammo_recharger`. F4 then starts the ammunition supply, the spare parts zone and the repair zone
+together. Leave out what the vehicle should not do: `support` (spare parts), `repair`, or the ammunition stock
+(`0`).
+
+- **Ammunition** works as on HEMTT Supply: in the zone and on a direct order, from the vehicle's own stock. The
+  framework does not change it.
+- **One circle.** A vehicle with spare parts shows the wrench circle, a repair-only vehicle the
+  wrench-and-hammer one.
+- **Repairs cost spare parts.** The repair is paid from the vehicle's `spares`.
+
 ### Rules for both
 
-- **Give a vehicle `support` or `repair`, not both.** With both, it works as a spare parts vehicle.
-- **Ammunition.** A vehicle with `support` or `repair` never hands out ammunition, neither in the zone nor
-  on a direct order.
 - **Radius.** Both zones use the game's supply radius, the same one as ammunition supply.
 - **Fuel.** A vehicle with `refuel` and `support` also gets the spare parts zone; F4 then switches the
-  refuelling and the spare parts together.
+  refuelling and the spare parts together. Fuel and ammunition on one vehicle are not supported: the game
+  does not build `ammunition_recharge` next to `refuel`, and the framework leaves that as it is.
 - **Tuning.** The repair speeds and prices are the same for every vehicle; they are not set per vehicle yet.
 
 ## Things to know
@@ -90,8 +108,8 @@ HEMTT Spares clones `Fnd_HEMTT_ammunition` twice. The clones differ from the ori
 
 | Vehicle | `abilities` | `spares` | `capacity_ammo_recharger` |
 |---|---|---|---|
-| HEMTT Spares (`Fnd_HEMTT_spares`) | `ammunition_recharge,support` | `10000` | `500` |
-| HEMTT Repair (`Fnd_HEMTT_repairer`) | `ammunition_recharge,repair` | `10000` | `500` |
+| HEMTT Spares (`Fnd_HEMTT_spares`) | `ammunition_recharge,support` | `10000` | `0` |
+| HEMTT Repair (`Fnd_HEMTT_repairer`) | `ammunition_recharge,repair` | `10000` | `0` |
 
 Plus a new name, icons and `unit_set=light_vehicle`. The rows go into `cars.xml` of the base game and of
 both DLCs (Resistance, Canada), and the vehicles into shops, the Founders' skirmish army and the

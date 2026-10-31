@@ -38,7 +38,6 @@ int g_events = 0;  // первые события пишем в лог для п
 
 FacetFn g_origAmmoOn, g_origAmmoOff, g_origFuelOn, g_origFuelOff, g_origSparesOn, g_origSparesOff;
 FacetFn g_origRepairOn, g_origRepairOff;
-CanRechargeFn g_origAmmoCanRecharge;
 UpdateFn g_origSparesUpdate, g_origAmmoUpdate, g_origFuelUpdate, g_origRepairUpdate;
 
 // Машина, которой принадлежит компонент: блок ссылки в [facet+0x10] -> объект. nullptr, если нет.
@@ -130,6 +129,7 @@ class LogicDllSupplyPort final : public core::SupplyPort {
 public:
     // By the components the vehicle has: spare parts first, then repair (kindOf).
     Kind kind(core::Station* s) override { return kindOf(s); }
+    bool repairs(core::Station* s) override { return findFacet(ownerOf(s), g_a.repairVt) != nullptr; }
     // "Off" flag, byte +0x59; 0 means switched on.
     bool isOn(core::Station* s) override { return spares_supply::isOn(s, kRechargerOffFlag); }
     // Redraws the circle with our material once and remembers it in g_ownCircles (convertCircle).
@@ -167,21 +167,13 @@ void hookAmmoOff(void* f) {
 }
 
 // Перехват AmmoRechargerFacet::update (слот 10), движок вызывает его каждый кадр. Оригинал раздаёт
-// патроны (у машин мода canRecharge отвечает «нет») и обновляет список машин в зоне. Пока режим F4
+// патроны из запаса машины и обновляет список машин в зоне. Пока режим F4
 // включён: у HEMTT Spares тикаем запчасти, у HEMTT Repair - ремонт; круг, созданный без нас (например,
 // при загрузке сохранения), тоже перекрашиваем.
 void hookAmmoUpdate(void* f, float dt) {
     g_origAmmoUpdate(f, dt);
     // the mod's part - core::onSupplyTick (does nothing while F4 mode is off)
     core::onSupplyTick(ports(), station(f), dt);
-}
-
-// Перехват AmmoRechargerFacet::canRecharge (слот 17): можно ли дать патроны target. Машины мода патроны
-// не раздают никогда - ни по зоне, ни по приказу; остальным - решает оригинал.
-bool hookAmmoCanRecharge(void* ammo, void* target) {
-    // the rule - core::handsOutAmmo; the same answer for the zone and for the click order
-    if (!core::handsOutAmmo(kindOf(ammo))) return false;
-    return g_origAmmoCanRecharge(ammo, target);
 }
 
 // ---------------------------------------------------------------- поиск и установка
@@ -298,8 +290,6 @@ bool install(const Image& img, Patcher& p) {
             &g_origAmmoOff);
     p.vslot("AmmoRechargerFacet::update", g_a.ammoVt, kSlotUpdate, kPrologueAmmoUpdate, &hookAmmoUpdate,
             &g_origAmmoUpdate);
-    p.vslot("AmmoRechargerFacet::canRecharge", g_a.ammoVt, kSlotCanRecharge, kPrologueAmmoCan, &hookAmmoCanRecharge,
-            &g_origAmmoCanRecharge);
     p.vslot("RefuellerFacet::activate", g_a.fuelVt, kSlotActivate, kPrologueRechargerOn, &hookFuelOn, &g_origFuelOn);
     p.vslot("RefuellerFacet::deactivate", g_a.fuelVt, kSlotDeactivate, kPrologueRechargerOff, &hookFuelOff,
             &g_origFuelOff);

@@ -151,11 +151,9 @@ extern int g_events;    // events written by trace() so far (at most 50 per run)
 // Signatures of the hooked engine methods; g_orig* - the original functions, saved when the patches go in,
 // so the hooks can call them.
 using FacetFn = void (*)(void* facet);
-using CanRechargeFn = bool (*)(void* facet, void* target);
 using UpdateFn = void (*)(void* facet, float dt);
 extern FacetFn g_origAmmoOn, g_origAmmoOff, g_origFuelOn, g_origFuelOff, g_origSparesOn, g_origSparesOff;
 extern FacetFn g_origRepairOn, g_origRepairOff;
-extern CanRechargeFn g_origAmmoCanRecharge;
 extern UpdateFn g_origSparesUpdate, g_origAmmoUpdate, g_origFuelUpdate, g_origRepairUpdate;
 
 // The vehicle a component belongs to: [facet+0x10] is a reference block, its object is the vehicle.
@@ -187,7 +185,6 @@ void convertCircle(void* ammo, Kind kind);
 void hookAmmoOn(void* f);
 void hookAmmoOff(void* f);
 void hookAmmoUpdate(void* f, float dt);
-bool hookAmmoCanRecharge(void* ammo, void* target);
 
 // The core's F4 rules wired to logic.dll: the supply port (common.cpp), the spare parts port (spares.cpp),
 // the repair port and state (repair.cpp).

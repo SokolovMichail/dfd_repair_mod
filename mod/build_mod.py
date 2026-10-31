@@ -32,8 +32,8 @@ TEMPLATE = 'Fnd_HEMTT_ammunition'
 COMMON_DESC = ('A versatile four-axle truck platform with space for various truck beds and modules. ')
 TOW_DESC = '&#10;&#10;Can tow light and heavy trailers except those requiring a fifth wheel mount.'
 
-# Машины мода - копии HEMTT Supply. ammunition_recharge (500) у обеих только ради кнопки F4:
-# патроны они не раздают (плагин). unit_set=light_vehicle - пока тест.
+# Mod vehicles are copies of HEMTT Supply. ammunition_recharge gives them the F4 button and runs their zone;
+# with capacity_ammo_recharger=0 they hand out no ammo. unit_set=light_vehicle - a test for now.
 UNITS = [
     dict(
         sysname='Fnd_HEMTT_spares',   # в версии 0.1 - Fnd_HEMTT_repair (сохранения 0.1 с этой машиной не загрузятся)
@@ -41,7 +41,7 @@ UNITS = [
         icon='fnd_hemmit_spares', icon_kind='spares',
         desc=COMMON_DESC + 'This version carries spare parts for field repairs.&#10;&#10;'
              'Can be quickly deployed into a supply depot that resupplies nearby vehicles with spare parts.' + TOW_DESC,
-        stats=['abilities=ammunition_recharge,support', 'capacity_ammo_recharger=500', 'spares=10000'],
+        stats=['abilities=ammunition_recharge,support', 'capacity_ammo_recharger=0', 'spares=10000'],
         # магазин кампании Resistance: 1 шт. в первом секторе + там же, где выдаётся HEMTT Supply
         shop=[('sector_1_reward', ':1'), ('sector_11_reward', ''), ('sector_14_reward_1', ''),
               ('sector_16_reward_2', '')],
@@ -54,7 +54,7 @@ UNITS = [
              'Can be quickly deployed into a repair station that repairs damaged modules and restores the armor '
              'of nearby friendly vehicles, using its own stock of spare parts.' + TOW_DESC,
         # чинит из своего запаса запчастей (плагин): 1 за 1 здоровья модуля, 1 за 1 мм брони
-        stats=['abilities=ammunition_recharge,repair', 'capacity_ammo_recharger=500', 'spares=10000'],
+        stats=['abilities=ammunition_recharge,repair', 'capacity_ammo_recharger=0', 'spares=10000'],
         shop=[('sector_1_reward', ':1')],   # пока тест: 1 шт. в первом секторе
     ),
 ]

@@ -4,7 +4,7 @@
 //   1) finds everything it needs in it (resolve) - classes by name, code locations by byte patterns, addresses
 //      of game functions from call instructions inside the code found;
 //   2) applies all patches as one "all or nothing" set: 4 replacements of "mov r15b,1" with nop (so mod
-//      vehicles get the F4 button), the spare parts zone radius, 12 method replacements in vtables.
+//      vehicles get the F4 button), the spare parts zone radius, 11 method replacements in vtables.
 // The key property: if the game was updated and anything at all does not match, the plugin changes NOTHING
 // (the game runs as without it) and logs exactly what was not found. This is checked here on a fake
 // logic.dll (support/fake_logic.h): first intact, then spoiled one detail at a time.
@@ -37,7 +37,6 @@ void resetPlugin() {
     g_a = Addr{};
     g_origAmmoOn = g_origAmmoOff = g_origFuelOn = g_origFuelOff = g_origSparesOn = g_origSparesOff = nullptr;
     g_origRepairOn = g_origRepairOff = nullptr;
-    g_origAmmoCanRecharge = nullptr;
     g_origSparesUpdate = g_origAmmoUpdate = g_origFuelUpdate = g_origRepairUpdate = nullptr;
     g_circleWritable = false;
 }
@@ -106,11 +105,10 @@ TEST_CASE_FIXTURE(Install, "Intact logic.dll: all patches applied, the plugin is
     CHECK(Image::matches(L.radiusLoad, "F3 0F 10 15"));
     CHECK(Image::ripTarget(L.radiusLoad, 4, 8) == L.supplyRadius);
 
-    // 3) 12 vtable methods replaced with hooks; the originals saved.
+    // 3) 11 vtable methods replaced with hooks; the originals saved.
     CHECK(slot(L.ammoVt, kSlotActivate) == addr(&hookAmmoOn));
     CHECK(slot(L.ammoVt, kSlotDeactivate) == addr(&hookAmmoOff));
     CHECK(slot(L.ammoVt, kSlotUpdate) == addr(&hookAmmoUpdate));
-    CHECK(slot(L.ammoVt, kSlotCanRecharge) == addr(&hookAmmoCanRecharge));
     CHECK(slot(L.fuelVt, kSlotActivate) == addr(&hookFuelOn));
     CHECK(slot(L.fuelVt, kSlotDeactivate) == addr(&hookFuelOff));
     CHECK(slot(L.fuelVt, kSlotUpdate) == addr(&hookFuelUpdate));
@@ -122,7 +120,6 @@ TEST_CASE_FIXTURE(Install, "Intact logic.dll: all patches applied, the plugin is
     CHECK(addr(g_origAmmoOn) == L.ammoOn);
     CHECK(addr(g_origAmmoOff) == L.ammoOff);
     CHECK(addr(g_origAmmoUpdate) == L.ammoUpdate);
-    CHECK(addr(g_origAmmoCanRecharge) == L.ammoCan);
     CHECK(addr(g_origFuelOn) == L.fuelOn);
     CHECK(addr(g_origFuelOff) == L.fuelOff);
     CHECK(addr(g_origFuelUpdate) == L.fuelUpdate);
@@ -131,6 +128,8 @@ TEST_CASE_FIXTURE(Install, "Intact logic.dll: all patches applied, the plugin is
     CHECK(addr(g_origRepairOn) == L.repairOn);
     CHECK(addr(g_origRepairOff) == L.repairOff);
     CHECK(addr(g_origRepairUpdate) == L.repairUpdate);
+    // canRecharge is not hooked: the mod's vehicles hand out their own ammo stock, as the game decides.
+    CHECK(slot(L.ammoVt, kSlotCanRecharge) == L.ammoCan);
     // Switching spare parts on is not hooked: the slot is unchanged, the original is saved.
     CHECK(slot(L.sparesVt, kSlotActivate) == L.sparesOn);
     CHECK(addr(g_origSparesOn) == L.sparesOn);
@@ -145,7 +144,7 @@ TEST_CASE_FIXTURE(Install, "Intact logic.dll: all patches applied, the plugin is
         {L.supportSite[0], 3}, {L.supportSite[1], 3}, {L.repairSite[0], 3}, {L.repairSite[1], 3},
         {L.radiusLoad + 4, 4}};
     for (auto [vt, slots] : std::vector<std::pair<uintptr_t, std::vector<int>>>{
-             {L.ammoVt, {kSlotActivate, kSlotDeactivate, kSlotUpdate, kSlotCanRecharge}},
+             {L.ammoVt, {kSlotActivate, kSlotDeactivate, kSlotUpdate}},
              {L.fuelVt, {kSlotActivate, kSlotDeactivate, kSlotUpdate}},
              {L.sparesVt, {kSlotUpdate, kSlotDeactivate}},
              {L.repairVt, {kSlotActivate, kSlotDeactivate, kSlotUpdate}}})
@@ -175,8 +174,8 @@ TEST_CASE_FIXTURE(Install, "Intact logic.dll: the log lists what was found and e
     snprintf(buf, sizeof buf, "functions: incHealth %08X diplomacy %08X material table %08X",
              L.pe.rva(L.incHealth), L.pe.rva(L.diplomacy), L.pe.rva(L.materialTable));
     CHECK(log.has(buf));
-    // 18 patches: 4 nops, the radius, 12 methods and the circle instruction check.
-    CHECK(log.count("patched: ") == 18);
+    // 17 patches: 4 nops, the radius, 11 methods and the circle instruction check.
+    CHECK(log.count("patched: ") == 17);
     CHECK(log.has(rvaText("patched: cars: support no longer blocks ammunition_recharge (RVA %08X)",
                           L.supportSite[0])));
     CHECK(log.has(rvaText("patched: tanks: repair no longer blocks ammunition_recharge (RVA %08X)",
