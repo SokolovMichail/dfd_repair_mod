@@ -32,15 +32,16 @@
   (ключи; ключ и молоток) и иконка мода. Таблиц игры в нём нет, поэтому он ни с чем не конфликтует;
 - **данные примера** — `mods/HEMTT_Spares`: обе машины (копии `Fnd_HEMTT_ammunition`; Spares —
   `abilities=ammunition_recharge,support`, запчасти 10000; Repair — `abilities=ammunition_recharge,repair`;
-  обе — патроны 500, лёгкая техника), магазин, армия скирмиша, локализация (en), значки, иконка мода;
+  обе — патроны 500 (раздают, как HEMTT Supply), лёгкая техника), магазин, армия скирмиша, локализация (en), значки, иконка мода;
 - **плагин фреймворка** — машин мода он не знает: поведение включают способности машины в таблице. Без него
   движок так не умеет (подробно — в начале
   [`logic_dll/common.h`](plugins/spares_supply/logic_dll/common.h), [`logic_dll/spares.h`](plugins/spares_supply/logic_dll/spares.h),
   [`logic_dll/repair.h`](plugins/spares_supply/logic_dll/repair.h) и в
   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)):
   разрешает `ammunition_recharge` рядом с `support` / `repair` (кнопка F4), в режиме F4 тикает компонент
-  запчастей (Spares) или сам чинит модули и броню машинам в зоне (Repair — движковый ремонт недоделан),
-  запрещает таким машинам раздавать патроны, рисует круги материалами мини-мода.
+  запчастей (Spares) и/или сам чинит модули и броню машинам в зоне (Repair — движковый ремонт недоделан),
+  рисует круги материалами мини-мода. Патроны не трогает: машина с настоящим запасом раздаёт их вместе с
+  запчастями и ремонтом.
 
 Релиз — четыре комплекта на одной странице мода: фреймворк отдельно или вместе с HEMTT Spares, каждый — в
 отдельной версии (наш `winhttp.dll`) или под DefianceLoader (см. «Цели сборки»).
@@ -178,7 +179,7 @@ HEMTT Repair — строки `repair: target=… +N hp, M armor layers`.
 | сборщик описаний машин: флаг после `repair` | то же | 0x51ced2 |
 | сборщик описаний танков: флаг после `repair` | то же | 0x522432 |
 | поиск целей запчастей: `movss xmm2, [20.0]` | → `movss xmm2, [supplyRadius]` (8 байт; пропускается при `defiance.supply-radius`) | 0x439c67 |
-| `AmmoRechargerFacet` слоты 10 / 13 / 14 / 17 (`update`, `deactivate`, `activate`, `canRecharge`) | слот vtable, 8 байт | 0x710900, 0x710918, 0x710920, 0x710938 |
+| `AmmoRechargerFacet` слоты 10 / 13 / 14 (`update`, `deactivate`, `activate`) | слот vtable, 8 байт | 0x710900, 0x710918, 0x710920 |
 | `RefuellerFacet` слоты 10 / 13 / 14 | слот vtable | 0x733d70, 0x733d88, 0x733d90 |
 | `SparesRechargerFacet` слоты 10 / 13 | слот vtable | 0x73d9a8, 0x73d9c0 |
 | `RepairerFacet` слоты 10 / 13 / 14 | слот vtable | 0x734028, 0x734040, 0x734048 |

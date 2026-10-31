@@ -33,7 +33,8 @@ HEMTT Spares - resupplies SPARE PARTS to your vehicles, the way HEMTT Supply doe
 * When deployed, every vehicle inside the zone gets its spare parts refilled.
   The zone is marked with wrench icons.
 * It is possible to order it to resupply a single vehicle, as with any supply truck.
-* It carries 10000 spare parts. It does not hand out ammunition or fuel.
+* It carries 10000 spare parts, and 500 rounds of ammunition it hands out like HEMTT Supply.
+  It does not hand out fuel.
 * Resistance campaign: one in the first sector shop, more in the same sector rewards
   as HEMTT Supply.
 * Main campaign: one in every shop.
@@ -45,6 +46,7 @@ HEMTT Repair - a mobile repair workshop.
 * It pays with its own spare parts (carries 10000): 1 per module health point, 1 per mm
   of armor. The repaired vehicle pays nothing. When its stock runs out, it stops repairing.
 * It does not repair itself or destroyed vehicles.
+* It also carries 500 rounds of ammunition and hands them out like HEMTT Supply.
 * Resistance campaign: one in the first sector shop.
 * Main campaign: one in every shop.
 * Evolution campaign: one in every shop.
@@ -219,7 +221,7 @@ F4 (режим снабжения) у любой машины, которой и
 HEMTT Spares - пополняет вашей технике ЗАПЧАСТИ, так же как HEMTT Supply - боеприпасы.
 * Когда развернута, пополняет запчасти всей технике в зоне. Зона отмечена гаечными ключами.
 * Можно приказать ей пополнить конкретную машину, как любому транспорту снабжения.
-* 10000 запчастей на борту. Боеприпасы и топливо не раздаёт.
+* 10000 запчастей на борту и 500 боеприпасов - их раздаёт, как HEMTT Supply. Топливо не раздаёт.
 * Кампания Resistance: одна в магазине первого сектора, ещё - в тех же наградах за секторы,
   что и HEMTT Supply.
 * Основная кампания: по одной в каждом магазине.
@@ -231,6 +233,7 @@ HEMTT Repair - передвижная ремонтная мастерская.
 * Платит своими запчастями (везёт 10000): 1 за единицу здоровья модуля и за 1 мм брони.
   У ремонтируемой машины ничего не списывается. Запас кончился - ремонт останавливается.
 * Себя и уничтоженную технику не чинит.
+* Ещё везёт 500 боеприпасов и раздаёт их, как HEMTT Supply.
 * Кампания Resistance: одна в магазине первого сектора.
 * Основная кампания: по одной в каждом магазине.
 * Кампания Evolution: по одной в каждом магазине.
