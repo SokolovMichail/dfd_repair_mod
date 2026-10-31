@@ -12,14 +12,20 @@ namespace {
 
 // Пересоздать круг с материалом path вместо ammoRecharge: на время одного вызова 0x120610 строка
 // ammoRecharge в таблице материалов подменяется и сразу возвращается обратно.
+// The swapped row and what it held, while a redraw is in progress - for restoreRepairCircle after a fault.
+MsvcString* g_swappedEntry = nullptr;
+MsvcString g_savedEntry{};
+
 void showCircleWithPath(void* ammo, const char* path) {
     auto table = reinterpret_cast<char* (*)()>(g_a.materialTable)();  // заодно гарантирует инициализацию
     auto entry = reinterpret_cast<MsvcString*>(table + kMaterialAmmo);
-    MsvcString saved = *entry;
+    g_savedEntry = *entry;
+    g_swappedEntry = entry;
     size_t n = strlen(path);
     *entry = MsvcString{path, {}, n, n};
     reinterpret_cast<FacetFn>(g_a.showCircle)(ammo);
-    *entry = saved;
+    *entry = g_savedEntry;
+    g_swappedEntry = nullptr;
 }
 
 // Отношение команды target к команде owner - так же, как в AmmoRechargerFacet::canRecharge: дипломатия
@@ -161,22 +167,32 @@ core::RepairPort& repairPort() { return g_repairPort; }
 // path to repairRecharge.material for one call of the circle function (showCircleWithPath above).
 void redrawRepairCircle(void* ammo) { showCircleWithPath(ammo, kRepairMaterial); }
 
+void restoreRepairCircle() {
+    if (!g_swappedEntry) return;
+    *g_swappedEntry = g_savedEntry;
+    g_swappedEntry = nullptr;
+}
+
 // RepairerFacet тоже IRechargerFacet и создаётся раньше боеприпасов, поэтому режим F4 у HEMTT Repair
 // включает/выключает именно его. Флаги ремонта ставим как обычно (режим F4 спрашивает isActive), а
 // включение дублируем на боеприпасы той же машины: они рисуют круг и собирают цели для tickRepair.
 void hookRepairOn(void* r) {
     g_origRepairOn(r);
-    void* ammo = findFacet(ownerOf(r), g_a.ammoVt);
-    // hookAmmoOn runs the game's ammo activation and then core::onSupplyOn - the rules of F4 mode
-    if (ammo && !isOn(ammo, kRechargerOffFlag)) hookAmmoOn(ammo);
+    guarded("repair F4 on", [&] {
+        void* ammo = findFacet(ownerOf(r), g_a.ammoVt);
+        // hookAmmoOn runs the game's ammo activation and then core::onSupplyOn - the rules of F4 mode
+        if (ammo && !isOn(ammo, kRechargerOffFlag)) hookAmmoOn(ammo);
+    });
 }
 void hookRepairOff(void* r) {
     g_origRepairOff(r);
-    void* ammo = findFacet(ownerOf(r), g_a.ammoVt);
-    if (ammo && isOn(ammo, kRechargerOffFlag)) {
-        trace("repair OFF (with supply mode)", ammo);
-        hookAmmoOff(ammo);
-    }
+    guarded("repair F4 off", [&] {
+        void* ammo = findFacet(ownerOf(r), g_a.ammoVt);
+        if (ammo && isOn(ammo, kRechargerOffFlag)) {
+            trace("repair OFF (with supply mode)", ammo);
+            hookAmmoOff(ammo);
+        }
+    });
 }
 // Свой update ремонта недоделан (ищет цели и выбрасывает результат) - не выполняем его вовсе.
 void hookRepairUpdate(void*, float) {}

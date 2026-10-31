@@ -117,6 +117,9 @@ If it says "not supported", your game build differs: HEMTT Spares only resupplie
 spare parts on direct order (no F4 zone) and HEMTT Repair does not repair.
 {END}
 Please report it together with the log.
+A line "fault in ..." means the plugin hit a problem and skipped that step instead of crashing
+the game. After 3 of them it stops its own work until you restart the game; the vehicles then
+behave as without the mod. Please report that too, with the log.
 {IF DEFIANCE}
 Settings: section [sokolov.spares-repair] in DefianceLoader\config\settings.ini
 ("enabled = false" turns the plugin off, "log = false" keeps its events out of the log).
@@ -302,6 +305,9 @@ sokolov.spares-repair: "SparesSupply staged", а сам плагин - в спи
 Если там "not supported" - у вас другая сборка игры: HEMTT Spares пополняет запчасти
 только по приказу (без зоны F4), HEMTT Repair не чинит. Сообщите об этом и приложите лог.
 {END}
+Строка "fault in ..." значит, что плагин наткнулся на ошибку и пропустил этот шаг, а не уронил
+игру. После 3 таких строк он прекращает свою работу до перезапуска игры; машины тогда ведут себя
+как без мода. Об этом тоже сообщите и приложите лог.
 {IF DEFIANCE}
 Настройки: раздел [sokolov.spares-repair] в DefianceLoader\config\settings.ini
 ("enabled = false" - выключить плагин, "log = false" - не писать его события в лог).

@@ -38,6 +38,8 @@ void* tickSpares(void* recharger, float dt);
 // Redraw the HEMTT Spares zone circle with the sparesRecharge material; false - the circle function
 // instruction is not writable, nothing was drawn.
 bool redrawSparesCircle(void* ammo);
+// The circle function's lea back to the ammoRecharge offset - after a fault during redrawSparesCircle.
+void restoreSparesCircle();
 
 // RefuellerFacet hooks (slots 14 / 13 / 10): the original, then the same vehicle's spare parts follow - for a
 // vehicle with refuel and support, where F4 mode switches the refueller.
