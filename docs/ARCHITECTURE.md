@@ -62,7 +62,7 @@
 
 | Файл мода | Что в нём |
 |---|---|
-| `basis/scripts/species/cars.xml`, `dlc/Resistance/.../cars.xml` | строки `Fnd_HEMTT_spares` и `Fnd_HEMTT_repairer` — копии `Fnd_HEMTT_ammunition` (её 3D-модель, ходовые качества). Spares: `abilities=ammunition_recharge,support`, `spares=10000`. Repair: `abilities=ammunition_recharge,repair`. Обе: `capacity_ammo_recharger=500`, `unit_set=light_vehicle` (пока тест), свои `tech_pic`/`garrison_pic`. Два файла, потому что скирмиш монтирует только основной слой, а кампания Resistance — ещё и слой DLC. |
+| `basis/scripts/species/cars.xml`, `dlc/Resistance/.../cars.xml` | строки `Fnd_HEMTT_spares` и `Fnd_HEMTT_repairer` — копии `Fnd_HEMTT_ammunition` (её 3D-модель, ходовые качества). Spares: `abilities=ammunition_recharge,support`, `spares=10000`. Repair: `abilities=ammunition_recharge,repair`. Обе: `capacity_ammo_recharger=0`, `unit_set=light_vehicle` (пока тест), свои `tech_pic`/`garrison_pic`. Два файла, потому что скирмиш монтирует только основной слой, а кампания Resistance — ещё и слой DLC. |
 | `basis/scripts/default_army.toml` | обе машины в списке Founders (скирмиш) |
 | `dlc/Resistance/.../shop_presets.xml` | Spares: 1 шт. в `sector_1_reward` + в наградах, где выдаётся HEMTT Supply. Repair: 1 шт. в `sector_1_reward` |
 | `basis/scripts/species/shop_presets.xml` | основная кампания: обе машины во всех магазинах (список `BASE_SHOPS`; кроме тестовых `test_shop_*` и демо `resistance_dlc_shop_demo`), по одной. Добавляются правкой `cars,+=` — элемент списка через запятую. В кампаниях Resistance и Canada этот файл перекрывается их собственным |
@@ -77,9 +77,9 @@
 
 **Почему `ammunition_recharge,support` / `ammunition_recharge,repair`.** Кнопку F4 игра даёт только машинам с
 боеприпасами или заправщиком, а сам режим F4 работает только с ними. Поэтому обеим машинам нужен компонент
-боеприпасов как «носитель» режима. Патроны плагин не трогает: свои 500 обе раздают, как HEMTT Supply (бонус), а
-машина с `ammunition_recharge,support,repair` раздаёт патроны, запчасти и чинит сразу (5.6). С запасом 0 —
-только запчасти или ремонт. Заправщик (`refuel`) не подходит: он раздаёт топливо из бака самой машины. У HEMTT Repair
+боеприпасов как «носитель» режима; запас патронов у них 0, раздавать нечего. Патроны плагин не трогает, поэтому
+машина с `ammunition_recharge,support,repair` и настоящим запасом раздаёт патроны, запчасти и чинит сразу (5.6).
+Кнопка F4 и круг с нулевым запасом работают (проверено в игре). Заправщик (`refuel`) не подходит: он раздаёт топливо из бака самой машины. У HEMTT Repair
 компонент ремонта `RepairerFacet` служит только меткой «это ремонтная машина» — сам ремонт делает плагин.
 
 ## 3. Загрузчик `bin\winhttp.dll`

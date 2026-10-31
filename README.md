@@ -32,7 +32,7 @@
   (ключи; ключ и молоток) и иконка мода. Таблиц игры в нём нет, поэтому он ни с чем не конфликтует;
 - **данные примера** — `mods/HEMTT_Spares`: обе машины (копии `Fnd_HEMTT_ammunition`; Spares —
   `abilities=ammunition_recharge,support`, запчасти 10000; Repair — `abilities=ammunition_recharge,repair`;
-  обе — патроны 500 (раздают, как HEMTT Supply), лёгкая техника), магазин, армия скирмиша, локализация (en), значки, иконка мода;
+  обе — патроны 0, лёгкая техника), магазин, армия скирмиша, локализация (en), значки, иконка мода;
 - **плагин фреймворка** — машин мода он не знает: поведение включают способности машины в таблице. Без него
   движок так не умеет (подробно — в начале
   [`logic_dll/common.h`](plugins/spares_supply/logic_dll/common.h), [`logic_dll/spares.h`](plugins/spares_supply/logic_dll/spares.h),

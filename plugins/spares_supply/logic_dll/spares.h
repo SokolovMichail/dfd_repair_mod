@@ -8,7 +8,7 @@
 //  3. Выключение компонента запчастей (слот 13) пропускается, пока у машины активен заправщик или
 //     боеприпасы - иначе приказ «пополнить запчасти» по клику выключил бы раздачу по окончании.
 //  4. Ammo is not touched: the vehicle hands out its own ammo stock (capacity_ammo_recharger in the table)
-//     like any HEMTT Supply, so it supplies ammo and spare parts at once. A stock of 0 - spare parts only.
+//     like any HEMTT Supply, so it can supply ammo and spare parts at once. HEMTT Spares has a stock of 0.
 //  5. Радиус поиска целей у запчастей (0x439bc0, зашитые 20 м) заменён на глобальный supplyRadius -
 //     тот же, что у боеприпасов/заправщика и у нарисованного круга F4.
 //  6. Круг зоны F4 рисуется материалом sparesRecharge (гаечные ключи - текстура в моде), а не
