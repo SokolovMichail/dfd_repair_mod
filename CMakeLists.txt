@@ -36,6 +36,10 @@ add_library(winhttp SHARED
 dfd_dll(winhttp)
 
 # ---- плагины (bin\plugins\*.dll)
+# The crash guard (common/guard.h): the plugins run their own code inside the game under it.
+set(DFD_GUARD_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/common/guard.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/common/guard_x64.S")
 # Plugin sources - shared by the DLL and the tests (tests/). core/ - the game-agnostic rules (no Windows, no
 # logic.dll), logic_dll/ - the binding to the current game build.
 set(SPARES_SUPPLY_CORE_SOURCES
