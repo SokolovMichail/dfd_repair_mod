@@ -35,7 +35,18 @@
 
 ## 2. Данные
 
-Собираются скриптом [`mod/build_mod.py`](../mod/build_mod.py) из **текущих** файлов установленной игры.
+Собираются скриптом [`mod/build_mod.py`](../mod/build_mod.py) из **текущих** файлов установленной игры. Модов
+два:
+
+- **мини-мод фреймворка** `mods/SparesSupplyRepairFramework` (SparesSupply & Repair Framework) — только круги
+  зоны: материалы и текстуры, которыми плагин рисует зоны запчастей и ремонта, плюс `mod.json` и иконка
+  (`make_mod_icon.py --framework`). Таблиц игры в нём нет, поэтому он ни с чем не конфликтует. Он нужен любой
+  машине на фреймворке — не только машинам HEMTT Spares;
+- **мод-пример** `mods/HEMTT_Spares` — сами машины (таблица ниже, кроме строк кругов).
+
+Плагин машин не знает: какую машину считать машиной запчастей или ремонта, решают её способности в таблице
+(`support` / `repair` рядом с `ammunition_recharge`). Поэтому свои машины на фреймворке другие моды делают одними
+данными — см. [`MODDING.md`](MODDING.md).
 
 **Откуда берутся файлы.** Игра монтирует слои: `basis.pak → patch_NNN*.pak → распакованная папка basis/`, и каждый
 следующий файл заменяет предыдущий целиком. [`mod/tools/gamefiles.py`](../mod/tools/gamefiles.py) для каждого
@@ -51,7 +62,7 @@
 
 | Файл мода | Что в нём |
 |---|---|
-| `basis/scripts/species/cars.xml`, `dlc/Resistance/.../cars.xml` | строки `Fnd_HEMTT_spares` и `Fnd_HEMTT_repairer` — копии `Fnd_HEMTT_ammunition` (её 3D-модель, ходовые качества). Spares: `abilities=ammunition_recharge,support`, `spares=10000`. Repair: `abilities=ammunition_recharge,repair`. Обе: `capacity_ammo_recharger=500`, `unit_set=light_vehicle` (пока тест), свои `tech_pic`/`garrison_pic`. Два файла, потому что скирмиш монтирует только основной слой, а кампания Resistance — ещё и слой DLC. |
+| `basis/scripts/species/cars.xml`, `dlc/Resistance/.../cars.xml` | строки `Fnd_HEMTT_spares` и `Fnd_HEMTT_repairer` — копии `Fnd_HEMTT_ammunition` (её 3D-модель, ходовые качества). Spares: `abilities=ammunition_recharge,support`, `spares=10000`. Repair: `abilities=ammunition_recharge,repair`. Обе: `capacity_ammo_recharger=0`, `unit_set=light_vehicle` (пока тест), свои `tech_pic`/`garrison_pic`. Два файла, потому что скирмиш монтирует только основной слой, а кампания Resistance — ещё и слой DLC. |
 | `basis/scripts/default_army.toml` | обе машины в списке Founders (скирмиш) |
 | `dlc/Resistance/.../shop_presets.xml` | Spares: 1 шт. в `sector_1_reward` + в наградах, где выдаётся HEMTT Supply. Repair: 1 шт. в `sector_1_reward` |
 | `basis/scripts/species/shop_presets.xml` | основная кампания: обе машины во всех магазинах (список `BASE_SHOPS`; кроме тестовых `test_shop_*` и демо `resistance_dlc_shop_demo`), по одной. Добавляются правкой `cars,+=` — элемент списка через запятую. В кампаниях Resistance и Canada этот файл перекрывается их собственным |
@@ -60,14 +71,15 @@
 | `localization/en/...`, `dlc/Resistance/localization/en/...` | имена «HEMTT Spares» / «HEMTT Repair» и тексты статей |
 | `basis/textures/ui/pictures/tech_pic/...fnd_hemmit_spares*.dds` | значки Spares: силуэт HEMTT с ящиком инструментов вместо снарядов ([`make_unit_icons.py`](../mod/art/make_unit_icons.py) `--kind spares`) |
 | `basis/textures/ui/pictures/tech_pic/...fnd_hemmit_repair*.dds` | значки Repair: кран-стрела с крюком (`make_unit_icons.py --kind repair`) |
-| `basis/materials/rounds/sparesRecharge.material` + `textures/cursor_decals/circle_spares.dds` | круг зоны Spares — гаечные ключи. В оригинале этот материал ссылался на безликий `circle_generic.dds` ([`make_circle_spares.py`](../mod/art/make_circle_spares.py)) |
-| `basis/materials/rounds/repairRecharge.material` + `textures/cursor_decals/circle_repair.dds` | круг зоны Repair — скрещённые ключ и молоток ([`make_circle_repair.py`](../mod/art/make_circle_repair.py)). Материал новый, в игре его нет: путь к нему подставляет плагин (5.6) |
-| `mod.json`, `basis/mod_icon.dds` | описание и иконка в меню MODS ([`make_mod_icon.py`](../mod/art/make_mod_icon.py)) |
+| **фреймворк:** `basis/materials/rounds/sparesRecharge.material` + `textures/cursor_decals/circle_spares.dds` | круг зоны Spares — гаечные ключи. В оригинале этот материал ссылался на безликий `circle_generic.dds` ([`make_circle_spares.py`](../mod/art/make_circle_spares.py)) |
+| **фреймворк:** `basis/materials/rounds/repairRecharge.material` + `textures/cursor_decals/circle_repair.dds` | круг зоны Repair — скрещённые ключ и молоток ([`make_circle_repair.py`](../mod/art/make_circle_repair.py)). Материал новый, в игре его нет: путь к нему подставляет плагин (5.6) |
+| `mod.json`, `basis/mod_icon.dds` (у каждого из двух модов свои) | описание и иконка в меню MODS ([`make_mod_icon.py`](../mod/art/make_mod_icon.py); у фреймворка — `--framework`: два круга зоны без машин) |
 
 **Почему `ammunition_recharge,support` / `ammunition_recharge,repair`.** Кнопку F4 игра даёт только машинам с
 боеприпасами или заправщиком, а сам режим F4 работает только с ними. Поэтому обеим машинам нужен компонент
-боеприпасов как «носитель» режима, а раздавать патроны им запрещает плагин. Запас 500 патронов — просто данные,
-никуда не уходят. Заправщик (`refuel`) не подходит: он раздаёт топливо из бака самой машины. У HEMTT Repair
+боеприпасов как «носитель» режима; запас патронов у них 0, раздавать нечего. Патроны плагин не трогает, поэтому
+машина с `ammunition_recharge,support,repair` и настоящим запасом раздаёт патроны, запчасти и чинит сразу (5.6).
+Кнопка F4 и круг с нулевым запасом работают (проверено в игре). Заправщик (`refuel`) не подходит: он раздаёт топливо из бака самой машины. У HEMTT Repair
 компонент ремонта `RepairerFacet` служит только меткой «это ремонтная машина» — сам ремонт делает плагин.
 
 ## 3. Загрузчик `bin\winhttp.dll`
@@ -106,7 +118,34 @@
 скриптом [`re/mksig.py`](../re/mksig.py)). А проверка начала подменяемых функций заодно подтверждает, что
 смещения полей, которые читает плагин, те же самые.
 
-## 5. Плагин `SparesSupply.dll` — [`plugins/spares_supply/spares_supply.cpp`](../plugins/spares_supply/spares_supply.cpp)
+## 5. Плагин `SparesSupply.dll` — [`plugins/spares_supply/`](../plugins/spares_supply/)
+
+Две части; из них собираются две DLL с одинаковым поведением — отличаются только точкой входа и тем, кто
+пишет правки в `logic.dll`:
+
+- `SparesSupply.dll` — **отдельная**: её загружает наш `winhttp.dll` из `bin\plugins`, правки она ставит сама
+  ([`logic_dll/standalone.cpp`](../plugins/spares_supply/logic_dll/standalone.cpp), 5.4);
+- `spares_repair.dll` + `spares_repair.plugin.json` — **плагин [DefianceLoader](https://github.com/DefianceLoader/DefianceLoader)**:
+  те же правки через загрузчик ([`logic_dll/defiance.cpp`](../plugins/spares_supply/logic_dll/defiance.cpp), 5.7).
+
+Части:
+
+- [`core/`](../plugins/spares_supply/core/) — **правила мода**, не зависящие от игры: ни `windows.h`, ни адресов, ни
+  объектов движка. [`supply.h`](../plugins/spares_supply/core/supply.h) — общие правила режима F4 (что делать при
+  включении, каждый кадр и при выключении, какой круг);
+  [`spares.h`](../plugins/spares_supply/core/spares.h) — HEMTT Spares; [`repair.h`](../plugins/spares_supply/core/repair.h) —
+  HEMTT Repair: импульс ремонта, цена и долг, кого можно чинить (5.6). С игрой ядро говорит только через
+  интерфейсы-«порты» (`SupplyPort`, `SparesPort`, `RepairPort`, `Modules`), машины для него — непрозрачные ручки.
+- [`logic_dll/`](../plugins/spares_supply/logic_dll/) — **привязка к нынешней `logic.dll`**: реализует порты через
+  реверс. [`common.h`/`.cpp`](../plugins/spares_supply/logic_dll/common.h) — модель объектов движка, перехваты
+  боеприпасов, круг зоны, поиск адресов и установка правок (5.4);
+  [`spares.h`/`.cpp`](../plugins/spares_supply/logic_dll/spares.h) и [`repair.h`/`.cpp`](../plugins/spares_supply/logic_dll/repair.h) —
+  перехваты и порты HEMTT Spares и HEMTT Repair: смещения полей, подмена круга, возврат запчастей цели после
+  `incHealth` и прочие обходы недоделок движка.
+
+Перехваты в `logic_dll/` тонкие: вызвать оригинал игры и передать событие ядру (`core::onSupplyOn/Off/Tick`).
+Если появится официальный API для модов, рядом с `logic_dll/` встанет новая привязка с теми же портами, а
+ядро и его тесты (`tests/core_test.cpp`) не изменятся.
 
 ### 5.1 Модель объектов движка, которой пользуется плагин
 
@@ -131,11 +170,10 @@
 | 2 | `AmmoRechargerFacet` / `RefuellerFacet` слоты 14 / 13 | `activate` / `deactivate` → вызвать оригинал + включить/выключить запчасти той же машины | режим F4 включает только первый «заправочный» компонент машины; запчасти — другой интерфейс и сами в режим не попадают |
 | 3 | те же классы, слот 10 `update` | оригинал + `update` запчастей с тем же `dt`, пока компонент включён | **апдейт запчастей движок сам не вызывает** — его тикает только приказ «пополнить по клику». Включённые, но не тикаемые запчасти ничего не делают |
 | 4 | `SparesRechargerFacet` слот 13 `deactivate` | не выключать, пока у машины активны боеприпасы/заправщик | приказ по клику по окончании выключает запчасти — это оборвало бы раздачу в режиме F4 |
-| 5 | `AmmoRechargerFacet` слот 17 `canRecharge` | «нельзя», если у машины есть запчасти или ремонт | машины мода не раздают патроны: этот метод спрашивают и раздача по зоне, и приказ по клику |
-| 6 | поиск целей запчастей | радиус: константа 20 м → глобальный `supplyRadius` (`movss` с другим адресом) | зона запчастей совпадает с нарисованным кругом. Сейчас `supplyRadius` тоже 20, правка на случай, если игра его поменяет. Константу 20.0 саму не трогаем: её читает и другой код |
-| 7 | рисование круга `AmmoRechargerFacet` | перерисовать круг материалом `sparesRecharge` / `repairRecharge` | см. 5.3 и 5.6 |
-| 8 | `AmmoRechargerFacet::update` (тот же перехват 3) | у HEMTT Repair: импульс ремонта раз в 0,5 с | ремонт модулей и брони машинам в зоне — см. 5.6 |
-| 9 | `RepairerFacet` слоты 14 / 13 / 10 | `activate` / `deactivate` → оригинал + то же для боеприпасов; `update` → ничего | режим F4 у HEMTT Repair управляет компонентом ремонта, а не боеприпасами — см. 5.6 |
+| 5 | поиск целей запчастей | радиус: константа 20 м → глобальный `supplyRadius` (`movss` с другим адресом) | зона запчастей совпадает с нарисованным кругом. Сейчас `supplyRadius` тоже 20, правка на случай, если игра его поменяет. Константу 20.0 саму не трогаем: её читает и другой код |
+| 6 | рисование круга `AmmoRechargerFacet` | перерисовать круг материалом `sparesRecharge` / `repairRecharge` | см. 5.3 и 5.6 |
+| 7 | `AmmoRechargerFacet::update` (тот же перехват 3) | у машины с ремонтом: импульс ремонта раз в 0,5 с (с запчастями — вместе с ними) | ремонт модулей и брони машинам в зоне — см. 5.6 |
+| 8 | `RepairerFacet` слоты 14 / 13 / 10 | `activate` / `deactivate` → оригинал + то же для боеприпасов; `update` → ничего | режим F4 у HEMTT Repair управляет компонентом ремонта, а не боеприпасами — см. 5.6 |
 
 ### 5.3 Жизненный цикл режима F4 с плагином
 
@@ -144,18 +182,18 @@
   └─ AiUnpack/AiDoRechargeState → AmmoRechargerFacet::activate        (перехват 2)
         ├─ оригинал: включить боеприпасы, нарисовать круг (ammoRecharge)
         ├─ syncSpares(on): найти у машины запчасти → SparesRechargerFacet::activate
-        └─ convertCircle: перерисовать круг материалом sparesRecharge     (правка 7)
+        └─ convertCircle: перерисовать круг материалом sparesRecharge     (правка 6)
 каждый кадр
   └─ движок → AmmoRechargerFacet::update                                (перехват 3)
-        ├─ оригинал: canRecharge(цель) = false → патроны никому          (перехват 5)
+        ├─ оригинал: раздать патроны из запаса машины
         └─ компонент включён → SparesRechargerFacet::update(dt):
-              раз в 1/скорость с → найти машины в радиусе supplyRadius   (правка 6)
+              раз в 1/скорость с → найти машины в радиусе supplyRadius   (правка 5)
               → пополнить запчасти, списать со своего запаса
 игрок сворачивает режим
   └─ AmmoRechargerFacet::deactivate → оригинал (убрать круг) → запчасти off
 ```
 
-**Круг (правка 7).** Круг зоны рисует функция компонента боеприпасов: она берёт материал из таблицы материалов
+**Круг (правка 6).** Круг зоны рисует функция компонента боеприпасов: она берёт материал из таблицы материалов
 по смещению, зашитому в инструкцию `lea r8,[rax+0x120]` (`0x120` — ammoRecharge, `0xE0` — sparesRecharge).
 Плагин держит эту инструкцию записываемой и при перерисовке на время одного вызова функции подставляет `0xE0`,
 затем возвращает `0x120` — остальные машины по-прежнему рисуют свои круги. Перерисованные круги запоминаются
@@ -164,7 +202,10 @@
 
 ### 5.4 Установка правок
 
-`DllMain` плагина только открывает лог и регистрирует `DllWatcher` на `logic.dll`. Когда она загружается:
+Установка общая для обеих DLL — `install(img, patcher)`; куда идут правки, решает `Patcher`. У отдельной
+DLL это `PatchSet` (пишет сам, сразу), у плагина DefianceLoader — запросы загрузчику (5.7).
+
+`DllMain` отдельной DLL только открывает лог и регистрирует `DllWatcher` на `logic.dll`. Когда она загружается:
 
 1. `resolve()` — поиск всех адресов:
    - пять vtable по RTTI: боеприпасы, заправщик, запчасти, ремонт, модули (`DamageableModulesFacet`);
@@ -175,9 +216,10 @@
      `RepairerFacet::update`), «дипломатия мира» (из `canRecharge`, его начало проверено), «таблица материалов»
      (за 12 байт до `lea` материала круга);
    - адрес `supplyRadius` — из rip-относительной инструкции, которая его читает.
-2. `PatchSet`: 4 замены байтов, радиус, 12 подмен слотов vtable (каждая с проверкой начала функции),
-   проверка инструкции круга. `apply()` — всё или ничего.
-3. Страница с инструкцией круга делается записываемой (для правки 7), в лог — `SparesSupply active`.
+2. `Patcher` (здесь `PatchSet`): 4 замены байтов, радиус, 11 подмен слотов vtable (каждая с проверкой начала
+   функции), проверка инструкции круга. `apply()` — всё или ничего.
+3. Страница с инструкцией круга делается записываемой (для правки 6, `unprotectCircle`), в лог —
+   `SparesSupply active`.
 
 Если что-то не нашлось или не совпало, в лог пишется, что именно, и игра работает без изменений. Данные мода
 при этом всё равно подключены: HEMTT Spares есть и пополняет запчасти по клику, только без кнопки F4;
@@ -207,6 +249,14 @@ HEMTT Repair ездит, но ничего не чинит.
 Собственный `update` ремонта (слот 10) заглушён.
 Цели он берёт у компонента боеприпасов: тот в своём `update` уже собирает машины в радиусе `supplyRadius`
 (список `[ammo+0x30]`, тем же поиском, что и у ремонта) — и рисует ровно этот круг.
+
+**Запчасти, патроны и ремонт на одной машине** (`ammunition_recharge,support,repair` с запасом патронов). F4
+включает компонент ремонта (он первый раздатчик), тот — боеприпасы, боеприпасы — запчасти. Каждый кадр после
+`update` боеприпасов (который раздаёт патроны) тикаются запчасти, и, раз у машины есть ремонт, — импульс
+ремонта (`SupplyPort::repairs`). Круг один — с ключами (`kindOf` даёт `Spares`). Ремонт платит запчастями
+машины (`[модули+0x130]`); тот ли это запас, из которого раздаёт компонент запчастей, не проверено. Топливо
+сюда не входит: `ammunition_recharge` рядом с `refuel` движок так и не
+создаёт.
 
 **Импульс ремонта** (`tickRepair`, раз в `kRepairPeriod` = 0,5 с, пока включён режим F4). Для каждой машины
 из списка:
@@ -238,14 +288,59 @@ HEMTT Repair ездит, но ничего не чинит.
 `materials/rounds/repairRecharge.material` и сразу возвращает её обратно. Таблица перед этим инициализируется
 вызовом её же функции; строка с путём — статическая в плагине, так что живёт всё время игры.
 
+### 5.7 Плагин DefianceLoader — `spares_repair.dll`
+
+[DefianceLoader](https://github.com/DefianceLoader/DefianceLoader) — загрузчик плагинов для этой игры
+(`bin\dxgi.dll`). Плагины лежат в `DefianceLoader\plugins`, рядом с каждым — манифест `.plugin.json`. Главное
+его правило: **каждый байт игры принадлежит одному плагину**. Все записи делает сам загрузчик; два плагина,
+пишущие в одно место, не уживаются — позже стартующий отключается целиком.
+
+Поэтому `spares_repair.dll` ничего в `logic.dll` не пишет сама:
+
+1. Загрузчик вызывает `init` (экспорт `defiance_plugin`), когда `logic.dll` уже загружена. ID плагина —
+   `sokolov.spares-repair`, он же `name` в `DefiancePlugin`; версия — `MOD_VERSION`, как в манифесте
+   (манифест генерирует CMake из [`spares_repair.plugin.json.in`](../plugins/spares_supply/spares_repair.plugin.json.in)).
+2. `install()` — тот же поиск и те же проверки, что у отдельной DLL (5.4), но `Patcher` — `DefiancePatcher`:
+   каждая правка — запрос `patch_bytes` (заменить такие-то байты на такие-то). Слот vtable — тоже просто
+   8 байт: адрес функции игры → адрес перехвата. Загрузчик пишет всё после `init`, вместе с правками других
+   плагинов.
+3. Тот же список отдаётся экспортом `defiance_patch_contract_v1`, а в манифесте `"patch_contract": true`:
+   загрузчик сверяет, что `init` попросил ровно это, и иначе плагин не запускает.
+4. Инструкцию круга (правка 6) плагин меняет сам во время игры — загрузчик об этом не знает. Чтобы её не занял
+   другой плагин, `init` просит её у загрузчика «без изменений» (байты до = байты после). Сделать её
+   записываемой при `init` нельзя: загрузчик ещё не писал и может вернуть странице прежнюю защиту. Поэтому
+   `unprotectCircle` откладывается до первой перерисовки круга HEMTT Spares (`g_circleDeferred`).
+
+Не нашлось или не совпало хоть что-то — `init` возвращает ошибку, загрузчик отбрасывает все её запросы, игра
+идёт без изменений. Лог — в `DefianceLoader\logs\defiance-loader.log` (строки с ID плагина).
+
+**Обе DLL сразу.** Отдельная DLL правит `logic.dll` в момент её загрузки, раньше любого плагина загрузчика.
+Тогда `init` видит в слотах адреса из чужого модуля, отказывается и пишет, какого:
+`… already points into SparesSupply.dll … remove bin\plugins\SparesSupply.dll`. Работает отдельная DLL.
+
+**`defiance.supply-radius`** (плагин загрузчика, по умолчанию выключен) переписывает ту же инструкцию радиуса
+запчастей (правка 5). Если он включён, `init` радиус не ищет и не трогает (`g_sparesRadius = false`): радиусом
+зоны запчастей управляет он, всё остальное работает как обычно.
+
+**Настройки** (раздел `[sokolov.spares-repair]` в `DefianceLoader\config\settings.ini`): `enabled` — его
+проверяет сам загрузчик; `log` — писать ли строки событий (5.5); строки установки пишутся всегда.
+
 ## 6. Сборка и релиз
 
 ```
 cmake --build <build> --target release
   ├─ вложенная Release-сборка: winhttp.dll, SparesSupply.dll (-O3, -s, статически, UCRT)
-  ├─ mod/build_mod.py   → <build>/release/stage/mods/HEMTT_Spares
-  └─ mod/package.py     → dist/HEMTT_Spares_v<MOD_VERSION>.zip  (+ _cover.png)
+  ├─ mod/build_mod.py   → <build>/release/stage/mods/{SparesSupplyRepairFramework,HEMTT_Spares}
+  ├─ mod/package.py         → dist/SparesSupplyRepairFramework_v<MOD_VERSION>.zip   (только фреймворк)
+  └─ mod/package.py --mod   → dist/HEMTT_Spares_v<MOD_VERSION>.zip  (фреймворк + пример, + _cover.png, _banner.png)
+cmake --build <build> --target release_defiance
+  └─ то же со spares_repair.dll: SparesSupplyRepairFramework_DefianceLoader_v…zip, HEMTT_Spares_DefianceLoader_v…zip
 ```
+
+Четыре комплекта — для одной страницы мода: игрок берёт фреймворк отдельно (если ставит чужие машины на нём) или
+вместе с HEMTT Spares, в отдельной версии или под DefianceLoader. README игрока у всех один
+([`Dist-readme.md`](Dist-readme.md), варианты — блоками `{IF ...}`), руководство для моддеров
+([`MODDING.md`](MODDING.md)) кладётся во все.
 
 DLL линкуются полностью статически, с системным UCRT, — нужны только `KERNEL32.dll` и `api-ms-win-crt-*`, которые
 есть в любой Windows 10/11 (у MinGW из комплекта CLion статическая `libwinpthread` собрана под UCRT, поэтому

@@ -1,55 +1,153 @@
-"""Упаковывает релиз HEMTT Spares: архив со структурой папки игры + обложка для публикации.
+"""Упаковывает релиз: архив со структурой папки игры (+ обложка для публикации). Четыре комплекта - фреймворк
+отдельно или вместе с модом-примером HEMTT Spares, в отдельной версии или под DefianceLoader:
 
-    python mod/package.py --mod <собранная папка мода> --winhttp <winhttp.dll> --plugin <SparesSupply.dll>
-                          --game-src <распакованные файлы игры, слой base> --version 0.1 --out <папка dist>
+    python mod/package.py [--mod <собранная папка HEMTT_Spares>] --framework-mod <собранная папка мини-мода>
+                          --winhttp <winhttp.dll> --plugin <SparesSupply.dll>
+                          [--game-src <распакованные файлы игры, слой base>] --version 1.0 --out <папка dist>
+    python mod/package.py --defiance [--mod <...>] --framework-mod <...> --plugin <spares_repair.dll>
+                          --manifest <spares_repair.plugin.json> [--game-src <...>] --version 1.0 --out <папка dist>
 
-Результат: <out>/HEMTT_Spares_v<версия>.zip, <out>/HEMTT_Spares_v<версия>_cover.png (1920x1080)
-и <out>/HEMTT_Spares_v<версия>_banner.png (1300x372)
+- без --mod - только фреймворк: SparesSupplyRepairFramework_v<версия>.zip
+  (с --defiance - SparesSupplyRepairFramework_DefianceLoader_v<версия>.zip): плагин + мини-мод фреймворка
+  (круги зоны) в mods/SparesSupplyRepairFramework;
+- с --mod - фреймворк + HEMTT Spares (mods/HEMTT_Spares): HEMTT_Spares_v<версия>.zip
+  (HEMTT_Spares_DefianceLoader_v<версия>.zip), и ещё обложка <out>/HEMTT_Spares_v<версия>_cover.png (1920x1080)
+  и превью _banner.png (1300x372) для страницы мода - для этого нужен --game-src.
+
+README для игроков - docs/Dist-readme.md: блоки {IF STANDALONE} / {IF DEFIANCE} и {IF FRAMEWORK} / {IF EXAMPLE}
+... {END} (могут быть вложены) попадают только в свой комплект.
+
+The archive is reproducible: entries in a fixed order, with a fixed date and attributes, so the same files give a
+byte-identical zip (with the same zlib - the one bundled with the Python used). The sha256 of the archive and of the
+plugin files in it go to <out>/SHA256SUMS.txt (lines of other packages already there are kept).
 """
 import argparse
+import hashlib
 import os
 import subprocess
 import sys
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+FRAMEWORK = 'SparesSupplyRepairFramework'
+ZIP_DATE = (1980, 1, 1, 0, 0, 0)  # the earliest date a zip can hold; the same in every build
+SUMS = 'SHA256SUMS.txt'
+
+
+def zip_entry(arc):
+    """A zip entry with no build-dependent fields: fixed date, a regular rw-r--r-- file, made on "MS-DOS"."""
+    info = zipfile.ZipInfo(arc, date_time=ZIP_DATE)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.create_system = 0
+    info.external_attr = 0o100644 << 16
+    return info
+
+
+def sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def update_sums(path, sums):
+    """Write sums ({name: sha256}) into the SHA256SUMS file path, keeping the lines of other names; sorted by name."""
+    old = {}
+    if os.path.isfile(path):
+        for line in open(path, encoding='utf-8'):
+            h, _, name = line.rstrip('\n').partition('  ')
+            if name:
+                old[name] = h
+    old.update(sums)
+    with open(path, 'w', encoding='utf-8', newline='\n') as f:
+        for name in sorted(old):
+            f.write(f'{old[name]}  {name}\n')
+
+
+def pick_variant(text, tags):
+    """Оставить в README блоки {IF <метка>} ... {END}, чья метка есть в tags, остальные выбросить (строки-маркеры -
+    тоже). Блоки могут быть вложены: строка остаётся, только если подходят все блоки вокруг неё. Текст вне
+    блоков - общий для всех комплектов."""
+    out, stack = [], []
+    for line in text.splitlines(keepends=True):
+        tag = line.strip()
+        if tag.startswith('{IF ') and tag.endswith('}'):
+            stack.append(tag[4:-1] in tags)
+        elif tag == '{END}':
+            stack.pop()
+        elif all(stack):
+            out.append(line)
+    if stack:
+        sys.exit('README: {IF} без {END}')
+    return ''.join(out)
 
 
 def main():
-    """Собрать релиз: архив со структурой папки игры (README - с подставленной версией), обложку 1920x1080
-    и превью 1300x372."""
+    """Собрать комплект: архив со структурой папки игры (README - с подставленной версией); для комплекта с
+    HEMTT Spares - ещё обложку 1920x1080 и превью 1300x372."""
     ap = argparse.ArgumentParser()
-    ap.add_argument('--mod', required=True)
-    ap.add_argument('--winhttp', required=True)
+    ap.add_argument('--defiance', action='store_true', help='упаковать плагин DefianceLoader, а не отдельную версию')
+    ap.add_argument('--mod', help='HEMTT Spares; без него - комплект только с фреймворком')
+    ap.add_argument('--framework-mod', required=True, help='мини-мод фреймворка (круги зоны)')
+    ap.add_argument('--winhttp', help='только для отдельной версии')
     ap.add_argument('--plugin', required=True)
-    ap.add_argument('--game-src', required=True)
+    ap.add_argument('--manifest', help='только с --defiance: spares_repair.plugin.json')
+    ap.add_argument('--game-src', help='нужен с --mod (обложка)')
     ap.add_argument('--version', required=True)
     ap.add_argument('--out', required=True)
     a = ap.parse_args()
+    if a.defiance and not a.manifest:
+        ap.error('с --defiance нужен --manifest')
+    if not a.defiance and not a.winhttp:
+        ap.error('нужен --winhttp (или --defiance)')
+    if a.mod and not a.game_src:
+        ap.error('с --mod нужен --game-src')
 
     files = []  # (путь на диске, путь в архиве)
-    mod = os.path.abspath(a.mod)
-    for dirpath, _, names in os.walk(mod):
-        for n in sorted(names):
-            p = os.path.join(dirpath, n)
-            files.append((p, 'mods/HEMTT_Spares/' + os.path.relpath(p, mod).replace('\\', '/')))
-    files += [(a.winhttp, 'bin/winhttp.dll'),
-              (a.plugin, 'bin/plugins/SparesSupply.dll'),
-              (os.path.join(HERE, '..', 'docs', 'Dist-readme.md'), 'HEMTT_Spares_README.txt')]
+
+    def add_mod(folder, name):
+        """Все файлы собранного мода folder - в архив как mods/<name>/..."""
+        folder = os.path.abspath(folder)
+        for dirpath, dirs, names in os.walk(folder):
+            dirs.sort()  # a fixed entry order, whatever order the file system lists folders in
+            for n in sorted(names):
+                p = os.path.join(dirpath, n)
+                files.append((p, f'mods/{name}/' + os.path.relpath(p, folder).replace('\\', '/')))
+
+    add_mod(a.framework_mod, FRAMEWORK)
+    if a.mod:
+        add_mod(a.mod, 'HEMTT_Spares')
+    if a.defiance:  # DefianceLoader берёт плагин вместе с манифестом из DefianceLoader\plugins
+        files += [(a.plugin, 'DefianceLoader/plugins/spares_repair.dll'),
+                  (a.manifest, 'DefianceLoader/plugins/spares_repair.plugin.json')]
+    else:
+        files += [(a.winhttp, 'bin/winhttp.dll'),
+                  (a.plugin, 'bin/plugins/SparesSupply.dll')]
+    base = 'HEMTT_Spares' if a.mod else FRAMEWORK
+    files.append((os.path.join(HERE, '..', 'docs', 'Dist-readme.md'), f'{base}_README.txt'))
+    # руководство для моддеров - во всех комплектах
+    files.append((os.path.join(HERE, '..', 'docs', 'MODDING.md'), f'{FRAMEWORK}_MODDING.txt'))
     missing = [p for p, _ in files if not os.path.isfile(p)]
     if missing:
         sys.exit('нет файлов: ' + ', '.join(missing))
 
+    tags = {'DEFIANCE' if a.defiance else 'STANDALONE', 'EXAMPLE' if a.mod else 'FRAMEWORK'}
     os.makedirs(a.out, exist_ok=True)
-    zip_path = os.path.join(a.out, f'HEMTT_Spares_v{a.version}.zip')
+    zip_path = os.path.join(a.out, f'{base}{"_DefianceLoader" if a.defiance else ""}_v{a.version}.zip')
+    sums = {}
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for p, arc in files:
-            if arc.endswith('README.txt'):  # номер версии подставляется при упаковке
-                z.writestr(arc, open(p, encoding='utf-8').read().replace('{VERSION}', a.version).encode('utf-8'))
+            if arc.endswith('README.txt'):  # версия и вариант README выбираются при упаковке
+                text = pick_variant(open(p, encoding='utf-8').read(), tags)
+                data = text.replace('{VERSION}', a.version).encode('utf-8')
             else:
-                z.write(p, arc)
-            print(f'{os.path.getsize(p):>10}  {arc}')
-    print(f'-> {zip_path} ({os.path.getsize(zip_path)} bytes)')
+                data = open(p, 'rb').read()
+            z.writestr(zip_entry(arc), data)
+            if arc.endswith(('.dll', '.plugin.json')):  # the plugin itself: players compare these with SHA256SUMS
+                sums[arc] = sha256(data)
+            print(f'{len(data):>10}  {arc}')
+    sums[os.path.basename(zip_path)] = sha256(open(zip_path, 'rb').read())
+    update_sums(os.path.join(a.out, SUMS), sums)
+    print(f'-> {zip_path} ({os.path.getsize(zip_path)} bytes), sha256 {sums[os.path.basename(zip_path)]}')
+    if not a.mod:
+        return
 
     cover = os.path.join(a.out, f'HEMTT_Spares_v{a.version}_cover.png')
     tmp_dds = os.path.join(a.out, '_cover.dds')

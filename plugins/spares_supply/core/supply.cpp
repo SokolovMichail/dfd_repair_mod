@@ -1,0 +1,47 @@
+// Common F4 mode rules. Overview - supply.h.
+//
+// The game itself switches the station on and off and runs its own per-frame update; the binding calls these
+// functions right after the game's original, so here we only add what the mod changes.
+
+#include "supply.h"
+
+namespace spares_supply::core {
+
+// F4 pressed: the game has switched the station on and drawn the ordinary ammo circle.
+void onSupplyOn(Ports& p, Station* s) {
+    // HEMTT Spares: its spare parts component is a different kind of component, F4 mode does not reach it on
+    // its own - switch it on together with the station. Vehicles without spare parts are left alone.
+    syncSpares(p.spares, s, true);
+    Kind k = p.supply.kind(s);
+    if (p.supply.repairs(s)) p.supply.event("repair ON  (with supply mode)", s);
+    // Redraw the zone circle with the vehicle's own material (spanners / wrench and hammer); an ordinary
+    // HEMTT Supply keeps the ammo circle.
+    p.supply.showCircle(s, k);
+}
+
+// F4 mode is over: the game has switched the station off and removed its circle.
+void onSupplyOff(Ports& p, Station* s) {
+    forgetRepair(p.repairState, s);
+    syncSpares(p.spares, s, false);
+}
+
+// Every frame, after the game's own update of the station (which hands out the vehicle's own ammo, if it has
+// any, and collects the vehicles in the zone).
+void onSupplyTick(Ports& p, Station* s, float dt) {
+    if (!p.supply.isOn(s)) return;
+    // The game never updates spare parts by itself (only the click order "resupply" does), so switched-on spare
+    // parts would hand out nothing - tick them here.
+    bool spares = tickSpares(p.spares, s, dt) != nullptr;
+    // The game's own repair component is unfinished and does nothing useful - the repair is ours. A vehicle
+    // with spare parts and repair does both.
+    bool repairs = p.supply.repairs(s);
+    if (repairs) tickRepair(p.repair, p.repairState, s, dt);
+    // One circle per vehicle: with both, the spare parts one, same as kind(). This also catches a circle the
+    // game created without us, e.g. when a save is loaded.
+    if (spares)
+        p.supply.showCircle(s, Kind::Spares);
+    else if (repairs)
+        p.supply.showCircle(s, Kind::Repair);
+}
+
+}  // namespace spares_supply::core

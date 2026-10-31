@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DefianceLoader/DefianceLoader/v1.9.0/schema/plugin.schema.json",
+  "schema": 1,
+  "id": "sokolov.spares-repair",
+  "dll": "spares_repair.dll",
+  "version": "@MOD_VERSION@",
+  "abi": 5,
+  "group": "spares-repair",
+  "hot_reload": false,
+  "patch_contract": true,
+  "multiplayer_safe": false,
+  "settings": [
+    {
+      "key": "enabled",
+      "type": "bool",
+      "default": "true",
+      "description": "HEMTT Spares and HEMTT Repair: F4 supply mode hands out spare parts / repairs vehicles in the zone (needs the HEMTT_Spares mod). Restart required."
+    },
+    {
+      "key": "log",
+      "type": "bool",
+      "default": "true",
+      "description": "Write the first F4 events and repair pulses to the loader log, for bug reports. Restart required."
+    }
+  ],
+  "depends": [{ "id": "defiance.core" }],
+  "conflicts": []
+}
