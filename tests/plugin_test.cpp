@@ -687,3 +687,100 @@ TEST_CASE_FIXTURE(Engine, "Event log: at most 50 per run") {
     for (int i = 0; i < 60; ++i) trace("test event", s.ammo.p());
     CHECK(log.count("test event facet=") == 50);
 }
+
+// ================================================================ crash guard
+// The mod's part of every hook runs under the crash guard (common/guard.h): a fault in it - here a game function
+// that writes to address 0 - is skipped and logged, the game's original has run anyway, and the zone circle
+// materials are put back. After kMaxFaults faults the mod's work is off for the rest of the run.
+
+namespace {
+
+// Game functions that fault: the circle function (after drawing, as if it crashed halfway) and crew repair.
+void crashingShowCircle(void* ammo) {
+    showCircle(ammo);
+    int* volatile p = nullptr;
+    *p = 1;
+}
+void crashingIncHealth(void*, size_t, int) {
+    int* volatile p = nullptr;
+    *p = 1;
+}
+
+}  // namespace
+
+TEST_CASE_FIXTURE(Engine, "Crash guard: a fault while drawing the spares circle - skipped, the lea is put back") {
+    Spares s;
+    g_a.showCircle = reinterpret_cast<uintptr_t>(&crashingShowCircle);
+    LogTail log(logFile());
+
+    hookAmmoOn(s.ammo.p());
+
+    // The game's own activation ran before the fault, and the game goes on.
+    CHECK(callNames().front() == "ammo.on");
+    // The circle function faulted while the lea held the spares offset; the lea is back to ammoRecharge.
+    REQUIRE(g_draws.size() == 1);
+    CHECK(g_draws[0].lea == 0xE0u);
+    CHECK(leaOffset() == 0x120u);
+    CHECK(log.has("fault in F4 on: exception C0000005 at plugin_test.exe+"));
+    CHECK(log.has("(fault 1 of 3)"));
+    CHECK(g_faults == 1);
+    CHECK_FALSE(g_ownWorkOff);
+}
+
+TEST_CASE_FIXTURE(Engine, "Crash guard: a fault while drawing the repair circle - the material row is put back") {
+    Repair r;
+    g_a.showCircle = reinterpret_cast<uintptr_t>(&crashingShowCircle);
+
+    hookRepairOn(r.repair.p());
+
+    REQUIRE(g_draws.size() == 1);
+    CHECK(g_draws[0].material == "materials/rounds/repairRecharge.material");
+    CHECK(std::string(ammoMaterialEntry().ptr, ammoMaterialEntry().size) == kAmmoMaterial);
+    CHECK(ammoMaterialEntry().capacity == strlen(kAmmoMaterial));
+    CHECK(g_faults == 1);
+}
+
+TEST_CASE_FIXTURE(RepairZone, "Crash guard: a fault in a repair pulse - skipped, the next frame runs again") {
+    Damaged d;
+    zone({&d.v.self});
+    circleField(r.ammo) = newCircle();
+    g_a.incHealth = reinterpret_cast<uintptr_t>(&crashingIncHealth);
+    LogTail log(logFile());
+
+    hookAmmoUpdate(r.ammo.p(), 0.1f);
+    CHECK(callNames() == std::vector<std::string>{"ammo.update"});
+    CHECK(moduleHp(d.modules, 0) == 50);
+    CHECK(log.has("fault in F4 tick: exception C0000005"));
+
+    // The game function works again: the next pulse repairs.
+    g_a.incHealth = reinterpret_cast<uintptr_t>(&incHealth);
+    hookAmmoUpdate(r.ammo.p(), 0.5f);
+    CHECK(moduleHp(d.modules, 0) == 52);
+    CHECK(g_faults == 1);
+}
+
+TEST_CASE_FIXTURE(RepairZone, "Crash guard: after 3 faults the mod's work is off, the hooks only call the originals") {
+    Damaged d;
+    zone({&d.v.self});
+    g_a.incHealth = reinterpret_cast<uintptr_t>(&crashingIncHealth);
+    LogTail log(logFile());
+
+    for (int i = 0; i < 5; ++i) hookAmmoUpdate(r.ammo.p(), 0.5f);
+
+    CHECK(g_faults == 3);  // the 4th and 5th frames did not run the mod's work at all
+    CHECK(g_ownWorkOff);
+    CHECK(log.count("fault in F4 tick") == 3);
+    CHECK(log.count("too many faults") == 1);
+
+    // Everything else is the game's own now: F4 on HEMTT Spares does not switch spare parts on...
+    Spares s;
+    g_calls.clear();
+    hookAmmoOn(s.ammo.p());
+    CHECK(callNames() == std::vector<std::string>{"ammo.on"});
+    CHECK_FALSE(isOnFlag(s.spares, kSparesOff));
+    // ...and switching spare parts off is no longer held back by F4 mode.
+    turnOn(s.spares, kSparesOff);
+    g_calls.clear();
+    hookSparesOff(s.spares.p());
+    CHECK(callNames() == std::vector<std::string>{"spares.off"});
+}

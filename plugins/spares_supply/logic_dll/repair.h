@@ -65,6 +65,9 @@ void tickRepair(void* ammo, float dt);
 core::RepairPort& repairPort();
 // Redraw the HEMTT Repair zone circle with the repairRecharge material.
 void redrawRepairCircle(void* ammo);
+// The material table row back to what it held - after a fault during redrawRepairCircle; nothing if no redraw
+// was in progress.
+void restoreRepairCircle();
 
 // RepairerFacet hooks (slots 14 / 13 / 10). F4 mode on HEMTT Repair switches the repair component (it comes
 // before ammo), so on / off are forwarded to the ammo component, which draws the circle and collects the zone;
