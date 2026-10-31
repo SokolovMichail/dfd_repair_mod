@@ -17,7 +17,9 @@ function(dfd_flags target)
     target_compile_definitions(${target} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wno-cast-function-type -mcrtdll=ucrt)
     # Всё статически; CRT - системный UCRT (статическая libwinpthread этого MinGW собрана под UCRT).
-    target_link_options(${target} PRIVATE -static -mcrtdll=ucrt $<$<CONFIG:Release>:-s>)
+    # --no-insert-timestamp: no link time in the PE header and the export table, so the same sources and
+    # toolchain give a byte-identical DLL (a reproducible release).
+    target_link_options(${target} PRIVATE -static -mcrtdll=ucrt -Wl,--no-insert-timestamp $<$<CONFIG:Release>:-s>)
 endfunction()
 
 # A mod DLL: common settings + a name without the lib prefix.
