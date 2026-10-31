@@ -3,9 +3,9 @@
 
     python mod/package.py [--mod <собранная папка HEMTT_Spares>] --framework-mod <собранная папка мини-мода>
                           --winhttp <winhttp.dll> --plugin <SparesSupply.dll>
-                          [--game-src <распакованные файлы игры, слой base>] --version 0.1 --out <папка dist>
+                          [--game-src <распакованные файлы игры, слой base>] --version 1.0 --out <папка dist>
     python mod/package.py --defiance [--mod <...>] --framework-mod <...> --plugin <spares_repair.dll>
-                          --manifest <spares_repair.plugin.json> [--game-src <...>] --version 0.1 --out <папка dist>
+                          --manifest <spares_repair.plugin.json> [--game-src <...>] --version 1.0 --out <папка dist>
 
 - без --mod - только фреймворк: SparesSupplyRepairFramework_v<версия>.zip
   (с --defiance - SparesSupplyRepairFramework_DefianceLoader_v<версия>.zip): плагин + мини-мод фреймворка

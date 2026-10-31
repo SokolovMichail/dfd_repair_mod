@@ -8,7 +8,7 @@ if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "Игра 64-битная: нужен x86_64 тулчейн")
 endif ()
 
-set(MOD_VERSION "0.1")
+set(MOD_VERSION "1.0")
 set(GAME_DIR "C:/Games/Terminator Dark Fate - Defiance" CACHE PATH "Папка игры (файлы для сборки мода, deploy)")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
