@@ -459,6 +459,8 @@ inline void reset() {
     g_armorDebt.clear();
     g_events = 0;
     g_repairLogs = 0;
+    g_faults = 0;
+    g_ownWorkOff = false;
 }
 
 // Switch a component on the way the game would without the plugin (the "off" flag = 0).
