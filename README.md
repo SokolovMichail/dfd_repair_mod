@@ -25,7 +25,7 @@ Resistance campaign — see below.
 | Vehicle | sysname | What it does | Zone circle | Campaign |
 |---|---|---|---|---|
 | **HEMTT Spares** | `Fnd_HEMTT_spares` | refills the spare parts of every vehicle in the zone; or an order for one vehicle | wrenches | 1 in the first sector shop + in the same rewards as HEMTT Supply |
-| **HEMTT Repair** (test) | `Fnd_HEMTT_repairer` | every 0.5 s repairs all damaged modules of own and allied vehicles in the zone (+2% of the maximum) and restores the armor (+2% of each layer's original thickness); does not repair itself or destroyed vehicles; pays with its own spare parts (10000): 1 per health point, 1 per 1 mm of armor, takes nothing from the target | wrench and hammer | 1 in the first sector shop |
+| **HEMTT Repair** (test) | `Fnd_HEMTT_repairer` | every 0.5 s puts out own and allied vehicles in the zone that are on fire (free: flames off, the crew may board again; repair from the next pulse), otherwise repairs all their damaged modules (+2% of the maximum) and restores the armor (+2% of each layer's original thickness); does not repair itself or destroyed vehicles; pays with its own spare parts (10000): 1 per health point, 1 per 1 mm of armor, takes nothing from the target | wrench and hammer | 1 in the first sector shop |
 
 Three parts; the first two are the framework, the third is the example:
 
@@ -40,7 +40,7 @@ Three parts; the first two are the framework, the third is the example:
   [`logic_dll/repair.h`](plugins/spares_supply/logic_dll/repair.h) and in
   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)):
   it allows `ammunition_recharge` next to `support` / `repair` (the F4 button), in F4 mode ticks the spare parts
-  component (Spares) and/or itself repairs modules and armor of vehicles in the zone (Repair — the
+  component (Spares) and/or itself puts out fires and repairs modules and armor of vehicles in the zone (Repair — the
   engine's repair is unfinished), draws the circles with the mini-mod's materials. It doesn't touch ammunition: a
   vehicle with a real stock hands it out together with spare parts and repair.
 
@@ -131,7 +131,7 @@ breaks nothing unnoticed. The game is not needed for them: instead of `logic.dll
 | Program | What it checks |
 |---|---|
 | `patch_h_test` | pattern and RTTI search, the "all or nothing" patch set, log, waiting for a DLL to load |
-| `plugin_test` | F4 mode of HEMTT Spares / Repair / Supply, the zone circle, module and armor repair, paying with spare parts |
+| `plugin_test` | F4 mode of HEMTT Spares / Repair / Supply, the zone circle, putting out fires, module and armor repair, paying with spare parts |
 | `plugin_install_test` | finding addresses and installing patches in a fake `logic.dll`; on any mismatch nothing changes |
 | `plugin_defiance_test` | the DefianceLoader plugin on a fake loader: asks for exactly the same patches, writes nothing itself, the contract matches, refuses on a mismatch, both DLLs at once, `supply-radius`, the `log` setting |
 | `core_test` | the core's rules (`core/`) on simple test ports, without a fake engine; the core builds without `windows.h` |
@@ -150,7 +150,7 @@ by accident.
 
 `bin\plugins\loader.log` — `loaded SparesSupply.dll`;
 `bin\plugins\SparesSupply.log` — `SparesSupply <version> loaded` … `SparesSupply active`; while HEMTT Repair works —
-lines `repair: target=… +N hp, M armor layers`.
+lines `repair: target=… +N hp, M armor layers`, and `repair: fire out target=…` when it puts a fire out.
 If it says `not supported`, the game has different code: see which pattern was not found and update it with
 `re/mksig.py` (see `docs/engine_notes.md`).
 

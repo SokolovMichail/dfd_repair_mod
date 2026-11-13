@@ -20,7 +20,8 @@ for any vehicle a mod gives them to:
   The zone is marked with wrench icons.
 * Repair zone - a deployed vehicle with the "repair" ability repairs your and allied vehicles inside
   its zone: all damaged modules and the worn armor, paying with its own spare parts
-  (1 per module health point, 1 per mm of armor). The zone is marked with wrench-and-hammer icons.
+  (1 per module health point, 1 per mm of armor). A burning vehicle is put out first, for free:
+  the flames go off and its crew may board again. The zone is marked with wrench-and-hammer icons.
 
 This package adds NO vehicles by itself. It is for mods built on it, such as HEMTT Spares
 (available as a separate download on the same page, with the framework included).
@@ -44,6 +45,8 @@ HEMTT Repair - a mobile repair workshop.
   and the worn armor. The zone is marked with wrench-and-hammer icons.
 * It pays with its own spare parts (carries 10000): 1 per module health point, 1 per mm
   of armor. The repaired vehicle pays nothing. When its stock runs out, it stops repairing.
+* A burning vehicle is put out first: the flames go off at once and the crew may get back in.
+  Putting out is free and works with an empty stock too; repair follows.
 * It does not repair itself or destroyed vehicles.
 * Resistance campaign: one in the first sector shop.
 * Main campaign: one in every shop.
@@ -210,7 +213,8 @@ F4 (режим снабжения) у любой машины, которой и
   технике в своей зоне, так же как HEMTT Supply - боеприпасы. Зона отмечена гаечными ключами.
 * Зона ремонта - развёрнутая машина со способностью "repair" чинит вашу и союзную технику в своей
   зоне: все повреждённые модули и поврежденную броню, платя своими запчастями (1 за единицу
-  здоровья модуля, 1 за 1 мм брони). Зона отмечена ключами и молотками.
+  здоровья модуля, 1 за 1 мм брони). Горящую машину сначала тушит, бесплатно: пламя гаснет,
+  экипаж снова может сесть. Зона отмечена ключами и молотками.
 
 Сам этот комплект машин НЕ добавляет. Он нужен модам, построенным на нём, например HEMTT Spares
 (отдельный файл на той же странице, фреймворк в нём уже есть).
@@ -233,6 +237,8 @@ HEMTT Repair - передвижная ремонтная мастерская.
   броню. Зона отмечена ключами и молотками.
 * Платит своими запчастями (везёт 10000): 1 за единицу здоровья модуля и за 1 мм брони.
   У ремонтируемой машины ничего не списывается. Запас кончился - ремонт останавливается.
+* Горящую машину сначала тушит: пламя сразу гаснет, экипаж может вернуться в машину.
+  Тушение бесплатное и работает даже с пустым запасом; потом идёт ремонт.
 * Себя и уничтоженную технику не чинит.
 * Кампания Resistance: одна в магазине первого сектора.
 * Основная кампания: по одной в каждом магазине.

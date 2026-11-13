@@ -94,15 +94,66 @@ find them by patterns; the addresses here are for finding the place quickly with
   `+0x130` the vehicle's spare parts (int), `+0x12c` their maximum. Slots 26/27 — spare parts / maximum, 28 — take
   (`0x2281b0`, not below 0), 29 — add (`0x2281d0`, not above the maximum).
 - `incHealth` is crew repair: **it takes as many spare parts from `+0x130` as it added health** (not below 0;
-  with zero spare parts it still repairs).
+  with zero spare parts it still repairs). It has no check on the amount: `incHealth(i, 0)` is valid.
 - Module: `+0x00` description (static), `+0x0c` health (int), `+0x28 + side*0x18` — `vector<float>` of the
   current armor layer thickness; 6 sides.
-- Module description: `+0x28` maximum health (int), `+0x90 + side*0x18` — vector of layers, 16 bytes each
-  (`+0` original thickness float, `+8` armor type: pairs of coefficients per damage class from `+0x28`).
+- Module description: `+0x28` maximum health (int), `+0x30` — `vector<uint64>` of effect flags of the damage
+  states (see "Module fire"), `+0x48` — a vector of 4 parameter records (0x18 bytes each), `+0x90 + side*0x18` —
+  vector of layers, 16 bytes each (`+0` original thickness float, `+8` armor type: pairs of coefficients per damage
+  class from `+0x28`), `+0x220` — `burn_effect_name` (`std::string`), `+0x240` — the node name for it.
 - Only the damage function `0x310790` (wear: `t = max(t - P/B, 0)`) and `DamageableModulesFacet::initialize`
   `0x226280` (a copy of the original when the unit is created) write the current thickness. The engine has no
   restoring in battle — the HEMTT Repair plugin writes the values directly, and the damage function reads them
   directly too.
+
+## Module fire
+
+What a player sees as a burning vehicle: flames on a module and the crew bailing out.
+
+- **Module damage state** (the same formula in `incHealth` `0x225ba0`, `decHealth` `0x225fd0` and `0x24d50`):
+  0 at full health, otherwise the float ratio health / maximum: ≥ `0.66f` (`0x74fda8`) — 1, ≥ `0.33f` (`0x74fd5c`) —
+  2, > 0 — 3, exactly 0 — 4. The current state is a byte per module at `[[modules+0x120]+8][i]`.
+- **Effects of a state:** the column `module_function` of `modules.xml` — 4 states separated by `;`, effects
+  joined by `+`, an optional message in brackets: `speed_penalty(engine_damaged);move(engine_destroyed);
+  smoke(inflammation)+unload_crew(bailing_out)+deny_crew_load;vital`. It is parsed by `0x3bbe80` (called from the
+  module description parser `0x3ae790`) into the description: `+0x30` — `vector<uint64>` of flags, resized to
+  exactly 4 (`0xd7540(vec, 4)`), element `s-1` for state `s`. Name → flag: `0x3bfa00` with the static table
+  built in `0x3c3690`: speed_penalty `0x10`, kill_half_cargo `0x20`, kill_cargo `0x40`, kill_crew `0x80`,
+  unload_crew `0x100`, unload_crew_morale `0x200`, kill_crew_member `0x400`, deny_crew_load `0x800`,
+  scattering_penalty `0x1000`, kill_driver `0x2000`, unload_cargo `0x4000`, **smoke `0x8000`**,
+  **burn_smoke `0x10000`** (plus none / vital / move / shoot / reload_penalty).
+- **Entering a state** (`0x25910`, called by `decHealth` for every state from the old one + 1 to the new one): for
+  each flag it does its effect. `smoke` (`0x26570`) starts the module's `burn_effect_name` (`module_burn:1.5`) at its
+  node through `0x45ebf0` with the lifetime **`damagedUnitBlockTime`** (global `0x875ec0`). `deny_crew_load`: AiFacet
+  `vfunc(+0x2a0)` → TransportHelper `vfunc(+0x240)(damagedUnitBlockTime)` — boarding is blocked for the same time.
+  `invs.xml`: `damagedUnitBlockTime` = 60 ("boarding block time of a damaged unit, also the time the compartment
+  smoke effect plays, seconds"; default in the code 30). So **the fire goes out by itself after 60 s**. It does no
+  damage.
+- In the data (base layer): 228 modules (engines, crew compartments, turrets — `Fnd_abrams`, `Fnd_hamvee`,
+  `Fnd_HEMTT_*`, `Res_van`, `Int_tank`, …) have `smoke(inflammation)+unload_crew+deny_crew_load` in state 3; 26 more
+  have `smoke` without the ban in state 3 (e.g. Legion turrets), 18 in state 2. `modules.xml` also has leftover rows
+  (`t55_*` and others) that no unit uses.
+- **Leaving a state** (`0x26150`, called by `incHealth` when the state drops): for every state from the old one down
+  to the new one + 1 it undoes that state's flags: `smoke` — `0x45ee30` stops the flames, `deny_crew_load` —
+  TransportHelper `vfunc(+0x250)` lifts the ban.
+- **`incHealth` always calls `0x25790` first**, before it looks at the states: for every module with a
+  `burn_effect_name` it calls `0x45ee30` — the flames go off on all modules with any repair. `0x45ee30(visual,
+  &effect name, &node)` finds the effect in the visual's list `[visual+0x1d8..+0x1e0)` by name (the part before `:`)
+  and node and stops it; nothing happens if there is no such effect. The visual facet is `0x27200(entity)`, the node
+  is `0x27e20([modules+0x120]+0x30, &desc+0x240)`.
+- **TransportHelper** (vtable `0x740228`): slot 72 (`+0x240`) `block(t)` — `[+0x250] = max([+0x250], t)`,
+  `[+0x51] = 1`; slot 73 (`+0x248`) isBlocked — `[+0x51]`; slot 74 (`+0x250`) unblock — `[+0x51] = 0`; slot 82 —
+  update, counts `[+0x250]` down and clears the flag at 0. Reached as `[entity->vfunc(+0xb0) + 0x28]` (AiFacet) →
+  `vfunc(+0x2a0)` (`0x252a0`: `[ai+0x190]→[+0x10]`). Only `0x25910` calls `block`: for `deny_crew_load` (60 s) and
+  for `burn_smoke` (99999 s).
+- **HEMTT Repair puts a fire out** (plugin): a module in its `smoke` state (or a worse one) while boarding is
+  blocked — `incHealth(i, 0)` (flames off, sync) + `unblock`. Health and spare parts stay as they are.
+- **The engine's real fire, `burn_smoke`** (`0x10000`), is not used by any table of the game. When a module enters
+  a state with it, `0x25910` starts the flames with a lifetime of 99999 s, blocks boarding for 99999 s and writes
+  the module's index to `AiFacet+0x2a4` (`+0x2a8` = 0; -1 — nothing burns, set only by the AiFacet constructors
+  `0xc6f10` / `0xc9df0` / `0xc9fd0`). `AiFacet::update` (slot 10, `0xcd1c0`) then adds `dt * moduleBurnSpeed` (global
+  `0x875ec4`, `invs.xml`: 1 hp/s) to `+0x2a8` and takes the whole part from the module through `decHealth`. Nothing
+  ever resets `+0x2a4`: such a fire never goes out, not even after a full repair. HEMTT Repair leaves it alone.
 
 ## Other
 

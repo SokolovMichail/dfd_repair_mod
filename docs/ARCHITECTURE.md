@@ -290,6 +290,14 @@ in the list:
    without a team — not allowed either. So HEMTT Repair repairs the same vehicles HEMTT Supply would give ammo to.
 2. Finds the vehicle's `DamageableModulesFacet` (infantry has none — skip). A vehicle with total health 0
    (destroyed) is skipped.
+   **Fire first.** If a module is in its burning damage state (the first state whose effects in the module
+   description include `smoke`, flag `0x8000`) while the game still bans the crew from boarding (TransportHelper
+   `isBlocked`), the vehicle is on fire: the flames and the ban start together and last the same
+   `damagedUnitBlockTime` (60 s). The pulse puts it out and does nothing else to this vehicle: `incHealth(module, 0)`
+   (it adds nothing but always takes the flames off first, `0x25790`) and TransportHelper `unblock`. Free of charge,
+   so it also works with an empty stock. Repair goes on from the next pulse. A fire that has burned out by itself
+   (no ban any more) is simply repaired; so are modules that burn without a crew ban — their flames go off with
+   the first `incHealth` anyway. Details — `engine_notes.md`, "Module fire".
 3. **Modules:** each damaged one gets `+max(1, 2% of maximum)` via `DamageableModulesFacet::incHealth`
    (`0x225ba0`). This is the same path as crew repair: the engine itself recalculates total health, the module state
    ("damaged" / "destroyed"), visuals and sync. From zero to full takes about 25 s.
@@ -305,7 +313,7 @@ part per 1 restored health, armor — `kSparesPerMm` (1) spare part per 1 mm of 
 accumulates and is deducted in whole spare parts. `incHealth` is crew repair, and it deducts spare parts from the
 **target** by itself (`[modules+0x130]` minus the health gain); the plugin remembers the target's stock before the call
 and restores it afterwards — the target does not pay. The gain per module is limited by the remaining stock; when the
-stock is empty, the pulse does nothing (`repair: out of spare parts` in the log).
+stock is empty, the pulse repairs nothing (`repair: out of spare parts` in the log) and only puts out fires.
 
 **Zone circle.** The material is taken from a table where we have no row of our own, and the offset in `lea` (as for
 spare parts) cannot point beyond the table. So for the duration of one circle function call the plugin replaces the
