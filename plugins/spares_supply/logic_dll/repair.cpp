@@ -10,14 +10,14 @@ namespace spares_supply {
 
 namespace {
 
-// Пересоздать круг с материалом path вместо ammoRecharge: на время одного вызова 0x120610 строка
-// ammoRecharge в таблице материалов подменяется и сразу возвращается обратно.
+// Recreate the circle with material path instead of ammoRecharge: for the time of one 0x120610 call the
+// ammoRecharge row in the material table is swapped and then put straight back.
 // The swapped row and what it held, while a redraw is in progress - for restoreRepairCircle after a fault.
 MsvcString* g_swappedEntry = nullptr;
 MsvcString g_savedEntry{};
 
 void showCircleWithPath(void* ammo, const char* path) {
-    auto table = reinterpret_cast<char* (*)()>(g_a.materialTable)();  // заодно гарантирует инициализацию
+    auto table = reinterpret_cast<char* (*)()>(g_a.materialTable)();  // also makes sure the table is initialized
     auto entry = reinterpret_cast<MsvcString*>(table + kMaterialAmmo);
     g_savedEntry = *entry;
     g_swappedEntry = entry;
@@ -28,9 +28,9 @@ void showCircleWithPath(void* ammo, const char* path) {
     g_swappedEntry = nullptr;
 }
 
-// Отношение команды target к команде owner - так же, как в AmmoRechargerFacet::canRecharge: дипломатия
-// мира (0x541a00) сравнивает команды цели и владельца. nullopt - нет дипломатии или у кого-то нет команды.
-// Можно ли с таким отношением чинить, решает ядро (core::mayRepair).
+// Relation of target's team to owner's team - the same way as in AmmoRechargerFacet::canRecharge: world
+// diplomacy (0x541a00) compares the teams of the target and the owner. nullopt - no diplomacy, or one of them
+// has no team. Whether that relation allows repair is up to the core (core::mayRepair).
 std::optional<int> relationOf(void* owner, void* target) {
     void* dip = reinterpret_cast<DiplomacyFn>(g_a.diplomacy)(vcall<void*>(owner, 0x78));
     if (!dip) return std::nullopt;
@@ -41,14 +41,15 @@ std::optional<int> relationOf(void* owner, void* target) {
     return vcall<int>(dip, 0xb0, vcall<int>(tt, 0x50), vcall<int>(ot, 0x50));
 }
 
-// Слои брони одной стороны модуля: текущая толщина (vector<float>) и описание (по kArmorLayerSize байт).
+// Armor layers of one side of a module: current thickness (vector<float>) and description (kArmorLayerSize
+// bytes each).
 struct ArmorSide {
     float* cur;
     const char* lay;
     size_t n;
 };
-// Слои брони стороны side (0..5) модуля mod с описанием desc. n - сколько слоёв есть и в текущей
-// толщине, и в описании (на случай, если длины векторов почему-то разошлись).
+// Armor layers of side `side` (0..5) of module mod with description desc. n - how many layers are present both
+// in the current thickness and in the description (in case the vector lengths ever differ).
 ArmorSide armorSide(char* mod, const char* desc, int side) {
     auto cur = reinterpret_cast<float**>(mod + kModuleArmor + side * 0x18);         // begin, end
     auto lay = reinterpret_cast<char* const*>(desc + kDescArmor + side * 0x18);   // begin, end
@@ -78,7 +79,7 @@ public:
     // Through the engine's own DamageableModulesFacet::incHealth - the same path crew repair takes, so the
     // engine recalculates total health, the module state ("damaged" / "destroyed"), visuals and sync itself.
     int addHealth(size_t i, int amount) override {
-        // incHealth - ремонт экипажем: списывает запчасти у самой цели. Им платит HEMTT Repair - вернуть.
+        // incHealth is crew repair: it takes spare parts from the target itself. HEMTT Repair pays - give them back.
         int targetSpares = sparesOfModules(m_);
         int before = health(i);
         reinterpret_cast<IncHealthFn>(g_a.incHealth)(m_, i, amount);
@@ -145,7 +146,8 @@ LogicDllRepairPort g_repairPort;
 
 }  // namespace
 
-// Запас запчастей машины - int в её DamageableModulesFacet ([+0x130]); ссылка, чтобы можно было менять.
+// The vehicle's stock of spare parts - an int in its DamageableModulesFacet ([+0x130]); a reference, so it can be
+// changed.
 int& sparesOfModules(void* modules) {
     return *reinterpret_cast<int*>(static_cast<char*>(modules) + kModulesSpares);
 }
@@ -173,9 +175,10 @@ void restoreRepairCircle() {
     g_swappedEntry = nullptr;
 }
 
-// RepairerFacet тоже IRechargerFacet и создаётся раньше боеприпасов, поэтому режим F4 у HEMTT Repair
-// включает/выключает именно его. Флаги ремонта ставим как обычно (режим F4 спрашивает isActive), а
-// включение дублируем на боеприпасы той же машины: они рисуют круг и собирают цели для tickRepair.
+// The RepairerFacet is an IRechargerFacet too and is created before the ammo component, so F4 mode on HEMTT
+// Repair switches exactly it on and off. The repair flags are set as usual (F4 mode asks isActive), and switching
+// on is repeated on the ammo component of the same vehicle: it draws the circle and collects targets for
+// tickRepair.
 void hookRepairOn(void* r) {
     g_origRepairOn(r);
     guarded("repair F4 on", [&] {
@@ -194,7 +197,8 @@ void hookRepairOff(void* r) {
         }
     });
 }
-// Свой update ремонта недоделан (ищет цели и выбрасывает результат) - не выполняем его вовсе.
+// The repair component's own update is unfinished (it looks for targets and throws the result away) - it is not
+// run at all.
 void hookRepairUpdate(void*, float) {}
 
 }  // namespace spares_supply
