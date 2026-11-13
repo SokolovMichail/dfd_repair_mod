@@ -1,113 +1,115 @@
-# Заметки по движку Terminator: Dark Fate – Defiance
+# Notes on the Terminator: Dark Fate – Defiance engine
 
-Всё проверено на GOG 1.09.1221 (`logic.dll` TimeDateStamp `6AB513E0`). Адреса — RVA внутри DLL
-(база образа `0x180000000`; для `.text` файловое смещение = RVA − `0xC00`). Плагины адреса не зашивают,
-а ищут по шаблонам; адреса здесь — чтобы быстро найти место инструментами из `re/`.
+Everything is checked on GOG 1.09.1221 (`logic.dll` TimeDateStamp `6AB513E0`). Addresses are RVAs inside the DLL
+(image base `0x180000000`; for `.text` the file offset = RVA − `0xC00`). The plugins don't hard-code addresses, they
+find them by patterns; the addresses here are for finding the place quickly with the tools in `re/`.
 
-`docs/TDF_HEMTT_Spares_Handoff.md` — исходный план (до реализации), оставлен для истории.
+`docs/TDF_HEMTT_Spares_Handoff.md` is the original plan (from before the implementation), kept for history.
 
-## Данные и слои
+## Data and layers
 
-- `.pak` — zip-архивы (ZipCrypto, пароль — `DFD_PAK_PASSWORD`). Таблицы — Excel-XML.
-- Каждый патч содержит файл **целиком**; мод тоже заменяет файл целиком.
-- Порядок слоёв: `basis.pak → patch_NNN*.pak → basis/ (распакованное) → localization → mods/<мод>/basis (prio 24)
-  → … → dlc → mods/<мод>/dlc/<DLC>/basis (prio 34) → локализация DLC`. Подключённые слои видны в `game.log`
-  (строки `FsMounter ... Mounted`).
-- **Скирмиш монтирует только основной слой**, кампания Resistance — оба. Список техники фракций скирмиша —
-  `scripts/default_army.toml`.
-- Локализация юнита: имя — `locale/cars.xml` (колонка `content`), статья — `encyclopedia_loc.xml` /
-  `encyclopedia_dlc_loc.xml` (по `sysname`).
-- Значки: `tech_pic` → `textures/ui/pictures/tech_pic/<имя>.dds`, варианты `_preselected` / `_selected` игра
-  ищет сама (`game.dll`: `ui/pictures/tech_pic/{}_preselected`). Значки техники — DDS A8B8G8R8
-  (маска R = `0xFF`, байты RGBA!), иконка мода — A8R8G8B8 (байты BGRA).
-- Мод: `mods/<папка>/mod.json` (`name`, `description`, `icon` — путь относительно папки мода).
-  Включённые моды — `Документы\My Games\Terminator Dark Fate\mods\mods.json` (у пользователя — OneDrive).
+- `.pak` files are zip archives (ZipCrypto, password in `DFD_PAK_PASSWORD`). Tables are Excel-XML.
+- Every patch contains a file **whole**; a mod also replaces a file whole.
+- Layer order: `basis.pak → patch_NNN*.pak → basis/ (unpacked) → localization → mods/<mod>/basis (prio 24)
+  → … → dlc → mods/<mod>/dlc/<DLC>/basis (prio 34) → DLC localization`. The mounted layers are visible in `game.log`
+  (lines `FsMounter ... Mounted`).
+- **Skirmish mounts only the main layer**, the Resistance campaign mounts both. The skirmish factions' vehicle lists
+  are in `scripts/default_army.toml`.
+- Unit localization: the name is in `locale/cars.xml` (column `content`), the article in `encyclopedia_loc.xml` /
+  `encyclopedia_dlc_loc.xml` (by `sysname`).
+- Icons: `tech_pic` → `textures/ui/pictures/tech_pic/<name>.dds`; the game finds the `_preselected` / `_selected`
+  variants itself (`game.dll`: `ui/pictures/tech_pic/{}_preselected`). Vehicle icons are DDS A8B8G8R8
+  (R mask = `0xFF`, bytes RGBA!), the mod icon is A8R8G8B8 (bytes BGRA).
+- A mod: `mods/<folder>/mod.json` (`name`, `description`, `icon` — a path relative to the mod folder).
+  Enabled mods are in `Documents\My Games\Terminator Dark Fate\mods\mods.json` (for the user — in OneDrive).
 
-## Способности (колонка `abilities`) → компоненты (`logic.dll`)
+## Abilities (column `abilities`) → components (`logic.dll`)
 
-| abilities | компонент | vtable (GOG) |
+| abilities | component | vtable (GOG) |
 |---|---|---|
 | `refuel` | `RefuellerFacet` | `0x733d20` |
 | `ammunition_recharge` | `AmmoRechargerFacet` | `0x7108b0` |
-| `support` | `SparesRechargerFacet` (запчасти) | `0x73d958` |
-| `repair` | `RepairerFacet` (ремонт модулей, недоделан) | `0x733fd8` |
+| `support` | `SparesRechargerFacet` (spare parts) | `0x73d958` |
+| `repair` | `RepairerFacet` (module repair, unfinished) | `0x733fd8` |
 
-- Сборщики описаний: машины `0x51c570`, танки `0x521ce0`. **`ammunition_recharge` не создаётся, если есть
-  `refuel`/`support`/`repair`** (`mov r15b,1` после каждого; support — `0x51ce31` / `0x52238f`,
-  repair — `0x51ced2` / `0x522432`). За `mov r15b,1` идёт `lea rcx,[rip+"[Leonardo.<Компонент>]"]` — по этой
-  строке места и различаются.
-- Общие слоты компонентов-«раздатчиков»: 10 `update(dt)`, 12 `isActive`, 13 `deactivate`, 14 `activate`.
-  Флаг «выключен»: Ammo/Refueller — байт `+0x59`, Spares — `+0x51`. Вызываются только через vtable.
-- Владелец компонента (машина) — `[facet+0x10]→[+0x10]`. Обход компонентов машины — `entity->vfunc(+0x58)`
-  отдаёт итератор (`+0x18` конец?, `+0x30` текущий, `+0x20` следующий, `+0x00` удаляющий деструктор),
-  см. `0x57490` / `0xce070`.
+- Description builders: cars `0x51c570`, tanks `0x521ce0`. **`ammunition_recharge` is not created if there is
+  `refuel`/`support`/`repair`** (`mov r15b,1` after each of them; support — `0x51ce31` / `0x52238f`,
+  repair — `0x51ced2` / `0x522432`). After `mov r15b,1` comes `lea rcx,[rip+"[Leonardo.<Component>]"]` — that string
+  tells the places apart.
+- Common slots of the "dispenser" components: 10 `update(dt)`, 12 `isActive`, 13 `deactivate`, 14 `activate`.
+  The "off" flag: Ammo/Refueller — byte `+0x59`, Spares — `+0x51`. They are called only through the vtable.
+- The component's owner (the vehicle) is `[facet+0x10]→[+0x10]`. Walking a vehicle's components: `entity->vfunc(+0x58)`
+  hands out an iterator (`+0x18` end?, `+0x30` current, `+0x20` next, `+0x00` deleting destructor),
+  see `0x57490` / `0xce070`.
 
-## Режим снабжения F4 («SUPPLY MODE»)
+## F4 supply mode ("SUPPLY MODE")
 
-- Кнопка — способность `Pack` (id 7). Выдаётся в `0x12a3c6`, если есть боеприпасы или заправщик
-  (AiFacet слоты 87 / 86, ответы кэшируются в `+0x1b8..+0x1bf`). Запчасти в условии не участвуют.
-- Состояния ИИ `AiUnpackRechargeState` / `AiDoRechargeState` (ctor `0xbfad0`) / `AiPackRechargeState` берут
-  **первый `IRechargerFacet`** машины (`0x57490`) и включают/выключают только его.
-- Апдейты Ammo/Refueller (`0x120b90` / `0x35f3f0`) движок вызывает каждый кадр.
-  **Апдейт запчастей `0x439e00` движок не вызывает** — его тикает только приказ по клику
+- The button is the `Pack` ability (id 7). It is given in `0x12a3c6` if the vehicle has ammunition or a refueller
+  (AiFacet slots 87 / 86, the answers are cached in `+0x1b8..+0x1bf`). Spare parts play no part in the condition.
+- The AI states `AiUnpackRechargeState` / `AiDoRechargeState` (ctor `0xbfad0`) / `AiPackRechargeState` take the
+  vehicle's **first `IRechargerFacet`** (`0x57490`) and switch only it on and off.
+- The engine calls the Ammo/Refueller updates (`0x120b90` / `0x35f3f0`) every frame.
+  **The engine does not call the spare parts update `0x439e00`** — only the click order ticks it
   (`AiSparesRechargeUnitState::update` `0xffac0`, `jmp [facet+0x50]`).
-- Поиск целей запчастей — `0x439bc0`, радиус — константа 20.0 (`0x74ff44`, общая с другим кодом!).
-  `supplyRadius` (глобал `0x875f4c`) в игре тоже 20. `speedRechargeSpares` = 100/с (`invs.xml`).
-- `AmmoRechargerFacet::canRecharge(target)` — слот 17 (`0x120900`); через него идут и зона, и приказ по клику.
-  Проверка команды в нём: `dip = 0x541a00(owner->vfunc(+0x78))` (дипломатия мира); команда сущности —
-  `[entity->vfunc(+0xb0) + 0x20]`, её id — `team->vfunc(+0x50)`; `dip->vfunc(+0xb0)(id цели, id владельца)` = 2 или
-  4 — нельзя (какое из них «враг», какое «нейтрал» — не выяснено).
-- Цели зоны боеприпасов: `0x120470` (из `update`) заполняет `[ammo+0x30..+0x38)` — `RefBlock*` сущностей в радиусе
-  `[ammo+0x5c]` (= `supplyRadius`), у которых есть `[vfunc(+0xb0)+0x28]` и `[+0x38]->vfunc(+0xa8)` = true.
-  Фильтр физического запроса (vtable `0x74c4a0`) отсекает только саму машину.
-- Круг зоны: `AmmoRechargerFacet` рисует его функцией `0x120610`, материал — из таблицы `0xff050`
-  (`+0xe0` sparesRecharge, `+0x100` fuel, `+0x120` ammo; инструкция `lea r8,[rax+0x120]` в `0x120687`).
-  Объект круга — `[facet+0x50]`. Ванильный `sparesRecharge.material` ссылается на безликий `circle_generic.dds`.
-  Таблица `0xff050` — 11 строк `std::string` по 0x20 байт (`materials/rounds/*.material`: maxAttack, minAttack,
-  tnt, emp, smoke, …, sparesRecharge, fuelRecharge, ammoRecharge, …), инициализируется при первом вызове.
-  Сам путь функция круга передаёт по ссылке в `[scene]+0x890`.
+- Spare parts target search — `0x439bc0`, radius — the constant 20.0 (`0x74ff44`, shared with other code!).
+  `supplyRadius` (global `0x875f4c`) is 20 in the game too. `speedRechargeSpares` = 100/s (`invs.xml`).
+- `AmmoRechargerFacet::canRecharge(target)` — slot 17 (`0x120900`); both the zone and the click order go through it.
+  Its team check: `dip = 0x541a00(owner->vfunc(+0x78))` (world diplomacy); an entity's team is
+  `[entity->vfunc(+0xb0) + 0x20]`, its id is `team->vfunc(+0x50)`; `dip->vfunc(+0xb0)(target id, owner id)` = 2 or
+  4 — not allowed (which of them is "enemy" and which is "neutral" was not found out).
+- Ammo zone targets: `0x120470` (from `update`) fills `[ammo+0x30..+0x38)` with `RefBlock*` of the entities within
+  `[ammo+0x5c]` (= `supplyRadius`) that have `[vfunc(+0xb0)+0x28]` and `[+0x38]->vfunc(+0xa8)` = true.
+  The physics query filter (vtable `0x74c4a0`) drops only the vehicle itself.
+- Zone circle: `AmmoRechargerFacet` draws it with the function `0x120610`, the material comes from the table `0xff050`
+  (`+0xe0` sparesRecharge, `+0x100` fuel, `+0x120` ammo; the instruction `lea r8,[rax+0x120]` at `0x120687`).
+  The circle object is `[facet+0x50]`. The vanilla `sparesRecharge.material` points to the plain `circle_generic.dds`.
+  The table `0xff050` is 11 `std::string` rows of 0x20 bytes (`materials/rounds/*.material`: maxAttack, minAttack,
+  tnt, emp, smoke, …, sparesRecharge, fuelRecharge, ammoRecharge, …), initialized on the first call.
+  The circle function passes the path itself by reference into `[scene]+0x890`.
 
-## Ремонт (`RepairerFacet`) — недоделан
+## Repair (`RepairerFacet`) — unfinished
 
 - vtable `0x733fd8`: 10 `update` `0x363790`, 11 `[+0x48]`, 12 isActive (`[+0x49]==0`), 13 deactivate
-  (`[+0x49]=1`), 14 activate (`word [+0x48]=0`), 15 радиус `[+0x5c]`.
-- Создаётся выключенным (`66 C7 47 48 00 01` в `0x261b2a` / `0x261cc5`), включение (`+0x70`) не вызывает никто.
-  Две фабрики: `0x261b90` (полная: `[+0x38]`, `[+0x40]`, период 0,5 с, радиус `supplyRadius`) и `0x261a30`
-  (`[+0x38]=0` — `update` бы упал); загрузка из сохранения — `0x363290`.
-- `update` `0x363790`: импульс раз в `[+0x4c]` с; физический запрос в радиусе `[+0x5c]` складывает результат в
-  локальный вектор и **тут же его освобождает**, а чинит по списку `[+0x20..+0x28)` (по 0x18 байт: `+8` сущность,
-  `+0x10` её `DamageableModulesFacet`), который никто не заполняет. Если бы заполнял: цели с
-  `IDamageableModulesFacet` (`0x3630e0`), без проверки команды; один повреждённый модуль за импульс на
-  `max(1, 1%)` (`0x74fcb0` = 0.01) через `incHealth` — то есть за запчасти самой цели (см. ниже).
-- `AiFacet[89]` hasRepairer / `[90]` canRepair — единственные пользователи `IRepairerFacet` (typeid `0xc5c40`;
+  (`[+0x49]=1`), 14 activate (`word [+0x48]=0`), 15 radius `[+0x5c]`.
+- It is created switched off (`66 C7 47 48 00 01` at `0x261b2a` / `0x261cc5`); nobody calls the switch-on (`+0x70`).
+  Two factories: `0x261b90` (full: `[+0x38]`, `[+0x40]`, period 0.5 s, radius `supplyRadius`) and `0x261a30`
+  (`[+0x38]=0` — `update` would crash); loading from a save — `0x363290`.
+- `update` `0x363790`: a pulse every `[+0x4c]` s; a physics query within `[+0x5c]` puts its result into a local
+  vector and **frees it right away**, while the repair goes over the list `[+0x20..+0x28)` (0x18 bytes each: `+8`
+  entity, `+0x10` its `DamageableModulesFacet`), which nobody fills. If it were filled: targets with
+  `IDamageableModulesFacet` (`0x3630e0`), no team check; one damaged module per pulse by
+  `max(1, 1%)` (`0x74fcb0` = 0.01) through `incHealth` — that is, paid with the target's own spare parts (see below).
+- `AiFacet[89]` hasRepairer / `[90]` canRepair are the only users of `IRepairerFacet` (typeid `0xc5c40`;
   `0xc5d30` — `RepairerFacet`).
-- **`IRepairerFacet` наследует `IRechargerFacet`** (typeid `0x320f0`, его и ищет `0x57490`). Компоненты создаются
-  в порядке refuel, support, repair, …, ammunition_recharge — у машины с `ammunition_recharge,repair` первым
-  раздатчиком будет ремонт, и режим F4 включает его, а не боеприпасы.
+- **`IRepairerFacet` inherits `IRechargerFacet`** (typeid `0x320f0`, the one `0x57490` looks for). Components are
+  created in the order refuel, support, repair, …, ammunition_recharge — on a vehicle with `ammunition_recharge,repair`
+  the first dispenser is the repair one, and F4 mode switches it on, not the ammunition.
 
-## Модули и броня (`DamageableModulesFacet`)
+## Modules and armor (`DamageableModulesFacet`)
 
-- vtable `0x723170` (вторая, `0x723160`, — подобъект `+0xa0`). Слот 19 (`+0x98`) — число модулей,
-  `+0xa0` — здоровье модуля `i`; `getModuleMaxHealth` `0x225810`, `incHealth(i, amount)` `0x225ba0`
-  (клампит к максимуму, обновляет `+0xcc`, состояние модуля, визуал, сетевую синхронизацию `[+0xc0]`).
-- Поля: `+0xc8` максимум общего здоровья, `+0xcc` текущее общее, `+0xd0..+0xd8` — вектор модулей по `0x148` байт,
-  `+0x130` запчасти машины (int), `+0x12c` их максимум. Слоты 26/27 — запчасти / максимум, 28 — списать
-  (`0x2281b0`, не ниже 0), 29 — добавить (`0x2281d0`, не выше максимума).
-- `incHealth` — ремонт экипажем: **списывает с `+0x130` столько запчастей, сколько добавил здоровья** (не ниже 0;
-  при нуле запчастей всё равно чинит).
-- Модуль: `+0x00` описание (статическое), `+0x0c` здоровье (int), `+0x28 + сторона*0x18` — `vector<float>`
-  текущей толщины слоёв брони; сторон 6.
-- Описание модуля: `+0x28` максимум здоровья (int), `+0x90 + сторона*0x18` — вектор слоёв по 16 байт
-  (`+0` исходная толщина float, `+8` тип брони: пары коэффициентов по классам урона с `+0x28`).
-- Текущую толщину пишут только функция урона `0x310790` (износ: `t = max(t - P/B, 0)`) и
-  `DamageableModulesFacet::initialize` `0x226280` (копия исходной при создании юнита). Восстановления в бою в
-  движке нет — плагин HEMTT Repair пишет значения напрямую, функция урона читает их тоже напрямую.
+- vtable `0x723170` (the second one, `0x723160`, is the `+0xa0` subobject). Slot 19 (`+0x98`) — number of modules,
+  `+0xa0` — health of module `i`; `getModuleMaxHealth` `0x225810`, `incHealth(i, amount)` `0x225ba0`
+  (clamps to the maximum, updates `+0xcc`, the module state, visuals, network sync `[+0xc0]`).
+- Fields: `+0xc8` maximum total health, `+0xcc` current total, `+0xd0..+0xd8` — vector of modules, `0x148` bytes each,
+  `+0x130` the vehicle's spare parts (int), `+0x12c` their maximum. Slots 26/27 — spare parts / maximum, 28 — take
+  (`0x2281b0`, not below 0), 29 — add (`0x2281d0`, not above the maximum).
+- `incHealth` is crew repair: **it takes as many spare parts from `+0x130` as it added health** (not below 0;
+  with zero spare parts it still repairs).
+- Module: `+0x00` description (static), `+0x0c` health (int), `+0x28 + side*0x18` — `vector<float>` of the
+  current armor layer thickness; 6 sides.
+- Module description: `+0x28` maximum health (int), `+0x90 + side*0x18` — vector of layers, 16 bytes each
+  (`+0` original thickness float, `+8` armor type: pairs of coefficients per damage class from `+0x28`).
+- Only the damage function `0x310790` (wear: `t = max(t - P/B, 0)`) and `DamageableModulesFacet::initialize`
+  `0x226280` (a copy of the original when the unit is created) write the current thickness. The engine has no
+  restoring in battle — the HEMTT Repair plugin writes the values directly, and the damage function reads them
+  directly too.
 
-## Прочее
+## Other
 
-- Lua 5.1, открыты только `base/string/table/math`; `console.log` в `game.log` не пишет. API `game.*` без ремонта.
-  `game.disappear` по связкам тягач+прицеп роняет игру.
-- `cheats.godMode` (`0x52dff0`) блокирует весь урон по юнитам игрока.
-- Множитель урона по пехоте сложности применяется только без сетевой синхронизации — в скирмише не работает.
-- Нативных плагинов игра не поддерживает: DLL-компоненты грузит `galileo.dll` по зашитым именам. Отсюда прокси
-  `winhttp.dll` (её импортируют `game.dll` и `libcef.dll`; вспомогательные процессы CEF — с `--type=`).
+- Lua 5.1, only `base/string/table/math` are open; `console.log` doesn't write to `game.log`. The `game.*` API has no
+  repair. `game.disappear` on tractor + trailer pairs crashes the game.
+- `cheats.godMode` (`0x52dff0`) blocks all damage to the player's units.
+- The difficulty's damage multiplier for infantry is applied only without network sync — it doesn't work in
+  skirmish.
+- The game doesn't support native plugins: `galileo.dll` loads DLL components by hard-coded names. Hence the
+  `winhttp.dll` proxy (`game.dll` and `libcef.dll` import it; the CEF helper processes are started with `--type=`).

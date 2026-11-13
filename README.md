@@ -1,207 +1,208 @@
-# DFDRepairMod — моды для Terminator: Dark Fate – Defiance
+# DFDRepairMod — mods for Terminator: Dark Fate – Defiance
 
-Проект целиком: нативные плагины (C++), сборка данных модов (Python), графика, упаковка релиза
-и инструменты разбора движка. Результат:
+The whole project: native plugins (C++), the mods' data build (Python), graphics, release packaging
+and engine reverse-engineering tools. The result:
 
-- **SparesSupply & Repair Framework** — фреймворк: механики зоны запчастей и зоны ремонта в режиме F4 для любой
-  машины, которой мод даст нужные способности;
-- **HEMTT Spares** — мод-пример на фреймворке с двумя машинами снабжения: HEMTT Spares (запчасти) и
-  HEMTT Repair (ремонт и броня, пока тестовая).
+- **SparesSupply & Repair Framework** — a framework: the spare parts zone and repair zone mechanics in F4 mode for any
+  vehicle a mod gives the right abilities to;
+- **HEMTT Spares** — an example mod on the framework with two supply vehicles: HEMTT Spares (spare parts) and
+  HEMTT Repair (repair and armor, still a test vehicle).
 
-| Документ | О чём |
+| Document | What about |
 |---|---|
-| [`INSTALL.md`](INSTALL.md) | установка, проверка, удаление (RU/EN) — для игроков |
-| [`docs/MODDING.md`](docs/MODDING.md) | как сделать свои машины на фреймворке (EN) — для моддеров; идёт во все комплекты |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | как устроен мод: данные, загрузчик, плагин, сборка |
-| [`docs/engine_notes.md`](docs/engine_notes.md) | что известно о движке (адреса, поля, слоты) |
-| [`re/README.md`](re/README.md) | инструменты разбора DLL игры |
+| [`INSTALL.md`](INSTALL.md) | installing, checking, removing (RU/EN) — for players |
+| [`docs/MODDING.md`](docs/MODDING.md) | how to make your own vehicles on the framework (EN) — for modders; goes into every package |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | how the mod works: data, loader, plugin, build |
+| [`docs/engine_notes.md`](docs/engine_notes.md) | what is known about the engine (addresses, fields, slots) |
+| [`re/README.md`](re/README.md) | tools for reverse engineering the game's DLLs |
 
-## Машины
+## Vehicles
 
-Обе — копии HEMTT Supply (та же 3D-модель), разворачиваются кнопкой F4 (режим снабжения) и работают по зоне.
-Патроны не раздают. Основная кампания и DLC Canada: обе — во всех магазинах (по одной). Скирмиш: Founders. Кампания Resistance — см. ниже.
+Both are copies of HEMTT Supply (the same 3D model), deploy with the F4 button (supply mode) and work over a zone.
+They hand out no ammunition. Main campaign and the Canada DLC: both in every shop (one of each). Skirmish: Founders.
+Resistance campaign — see below.
 
-| Машина | sysname | Что делает | Круг зоны | Кампания |
+| Vehicle | sysname | What it does | Zone circle | Campaign |
 |---|---|---|---|---|
-| **HEMTT Spares** | `Fnd_HEMTT_spares` | пополняет запчасти всем машинам в зоне; или приказ на конкретную машину | гаечные ключи | 1 шт. в магазине первого сектора + в тех же наградах, что HEMTT Supply |
-| **HEMTT Repair** (тест) | `Fnd_HEMTT_repairer` | раз в 0,5 с чинит своим и союзным машинам в зоне все повреждённые модули (+2% максимума) и восстанавливает броню (+2% исходной толщины каждого слоя); себя и уничтоженных не чинит; платит своими запчастями (10000): 1 за единицу здоровья, 1 за 1 мм брони, у цели ничего не списывает | ключ и молоток | 1 шт. в магазине первого сектора |
+| **HEMTT Spares** | `Fnd_HEMTT_spares` | refills the spare parts of every vehicle in the zone; or an order for one vehicle | wrenches | 1 in the first sector shop + in the same rewards as HEMTT Supply |
+| **HEMTT Repair** (test) | `Fnd_HEMTT_repairer` | every 0.5 s repairs all damaged modules of own and allied vehicles in the zone (+2% of the maximum) and restores the armor (+2% of each layer's original thickness); does not repair itself or destroyed vehicles; pays with its own spare parts (10000): 1 per health point, 1 per 1 mm of armor, takes nothing from the target | wrench and hammer | 1 in the first sector shop |
 
-Три части; первые две — фреймворк, третья — пример:
+Three parts; the first two are the framework, the third is the example:
 
-- **мини-мод фреймворка** — `mods/SparesSupplyRepairFramework`: только материалы и текстуры кругов зоны
-  (ключи; ключ и молоток) и иконка мода. Таблиц игры в нём нет, поэтому он ни с чем не конфликтует;
-- **данные примера** — `mods/HEMTT_Spares`: обе машины (копии `Fnd_HEMTT_ammunition`; Spares —
-  `abilities=ammunition_recharge,support`, запчасти 10000; Repair — `abilities=ammunition_recharge,repair`;
-  обе — патроны 0, лёгкая техника), магазин, армия скирмиша, локализация (en), значки, иконка мода;
-- **плагин фреймворка** — машин мода он не знает: поведение включают способности машины в таблице. Без него
-  движок так не умеет (подробно — в начале
+- **the framework mini-mod** — `mods/SparesSupplyRepairFramework`: only the materials and textures of the zone circles
+  (wrenches; wrench and hammer) and the mod icon. It has no game tables, so it conflicts with nothing;
+- **the example data** — `mods/HEMTT_Spares`: both vehicles (copies of `Fnd_HEMTT_ammunition`; Spares —
+  `abilities=ammunition_recharge,support`, 10000 spare parts; Repair — `abilities=ammunition_recharge,repair`;
+  both — 0 ammunition, light vehicles), shop, skirmish army, localization (en), icons, mod icon;
+- **the framework plugin** — it doesn't know the mod's vehicles: the behaviour is switched on by the vehicle's
+  abilities in the table. Without it the engine can't do this (in detail — at the top of
   [`logic_dll/common.h`](plugins/spares_supply/logic_dll/common.h), [`logic_dll/spares.h`](plugins/spares_supply/logic_dll/spares.h),
-  [`logic_dll/repair.h`](plugins/spares_supply/logic_dll/repair.h) и в
+  [`logic_dll/repair.h`](plugins/spares_supply/logic_dll/repair.h) and in
   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)):
-  разрешает `ammunition_recharge` рядом с `support` / `repair` (кнопка F4), в режиме F4 тикает компонент
-  запчастей (Spares) и/или сам чинит модули и броню машинам в зоне (Repair — движковый ремонт недоделан),
-  рисует круги материалами мини-мода. Патроны не трогает: машина с настоящим запасом раздаёт их вместе с
-  запчастями и ремонтом.
+  it allows `ammunition_recharge` next to `support` / `repair` (the F4 button), in F4 mode ticks the spare parts
+  component (Spares) and/or itself repairs modules and armor of vehicles in the zone (Repair — the
+  engine's repair is unfinished), draws the circles with the mini-mod's materials. It doesn't touch ammunition: a
+  vehicle with a real stock hands it out together with spare parts and repair.
 
-Релиз — четыре комплекта на одной странице мода: фреймворк отдельно или вместе с HEMTT Spares, каждый — в
-отдельной версии (наш `winhttp.dll`) или под DefianceLoader (см. «Цели сборки»).
+The release is four packages on one mod page: the framework alone or together with HEMTT Spares, each in the
+standalone version (our `winhttp.dll`) or for DefianceLoader (see "Build targets").
 
-Проверено на GOG 1.09.1221. Адреса в `logic.dll` не зашиты — плагин ищет их по байтовым шаблонам и RTTI,
-поэтому должен работать и на Steam. Не нашлось/не совпало хоть что-то — ничего не меняет и пишет в лог.
-Только одиночная игра.
+Checked on GOG 1.09.1221. Addresses in `logic.dll` are not hard-coded — the plugin finds them by byte patterns and
+RTTI, so it should work on Steam too. If anything is not found or doesn't match, it changes nothing and writes to the
+log. Single player only.
 
-## Структура
+## Layout
 
 ```
-CMakeLists.txt         цели сборки (см. ниже), версия мода MOD_VERSION
-.env.example           шаблон локальных настроек -> скопировать в .env
-.run/                  готовые конфигурации запуска CLion: Build release / Deploy to game / Build mod data,
+CMakeLists.txt         build targets (see below), the mod version MOD_VERSION
+.env.example           template of local settings -> copy to .env
+.run/                  ready CLion run configurations: Build release / Deploy to game / Build mod data,
                        Build release (DefianceLoader) / Deploy to game (DefianceLoader),
                        Build SparesSupply (standalone) / Build spares_repair (DefianceLoader)
-common/patch.h         общее для плагинов: лог, поиск по шаблонам и RTTI, набор правок, ожидание загрузки DLL
-loader/                winhttp.dll: прокси системной winhttp.dll + загрузчик bin\plugins\*.dll
-plugins/spares_supply/ SparesSupply.dll (отдельно) и spares_repair.dll (плагин DefianceLoader) - из одних исходников:
-  core/                правила мода без привязки к игре: supply.* (режим F4), spares.* (HEMTT Spares),
-                       repair.* (HEMTT Repair); с игрой говорят только через интерфейсы-порты
-  logic_dll/           привязка к нынешней logic.dll: common.* (модель объектов, перехваты боеприпасов,
-                       установка правок), spares.*, repair.* (перехваты и реализация портов);
-                       standalone.cpp - точка входа SparesSupply.dll, defiance.cpp - точка входа spares_repair.dll
-  spares_repair.plugin.json.in  манифест плагина DefianceLoader (CMake подставляет версию)
-third_party/defiance/  defiance.h - C-заголовок API DefianceLoader (v1.9.0, MIT)
-tools/                 gen_winhttp_proxy.py - генерация переходников winhttp (нужен редко)
+common/patch.h         shared by the plugins: log, pattern and RTTI search, patch set, waiting for a DLL to load
+loader/                winhttp.dll: proxy of the system winhttp.dll + loader of bin\plugins\*.dll
+plugins/spares_supply/ SparesSupply.dll (standalone) and spares_repair.dll (DefianceLoader plugin) - from the same sources:
+  core/                the mod's rules without ties to the game: supply.* (F4 mode), spares.* (HEMTT Spares),
+                       repair.* (HEMTT Repair); they talk to the game only through port interfaces
+  logic_dll/           binding to today's logic.dll: common.* (object model, ammunition hooks,
+                       patch installation), spares.*, repair.* (hooks and port implementations);
+                       standalone.cpp - entry point of SparesSupply.dll, defiance.cpp - entry point of spares_repair.dll
+  spares_repair.plugin.json.in  DefianceLoader plugin manifest (CMake fills in the version)
+third_party/defiance/  defiance.h - C header of the DefianceLoader API (v1.9.0, MIT)
+tools/                 gen_winhttp_proxy.py - generates the winhttp forwarders (rarely needed)
 mod/
-  build_mod.py         сборка обоих модов из актуальных файлов игры: мини-мод фреймворка и HEMTT Spares
-                       (что и откуда - в начале файла)
-  package.py           комплекты релиза + обложка (README для игроков - docs/Dist-readme.md)
-  art/                 графика: круги (make_circle_spares, make_circle_repair), значки машин
-                       (make_unit_icons --kind spares|repair), иконки модов (make_mod_icon [--framework])
-  tools/               gamefiles.py (поиск актуальной версии файла в слоях игры), patch_table.py (правка
-                       Excel-XML таблиц), patch_army_toml.py, pak_extract.py (ручная распаковка), table_grep.py
-re/                    инструменты разбора DLL игры (см. re/README.md)
-tests/                 тесты плагина (doctest + CTest), игра для них не нужна - см. «Тесты»
-docs/                  engine_notes.md - что известно о движке; Dist-readme.md - README для игроков в архиве;
-                       MODDING.md - руководство для моддеров (в архиве); исходный план HEMTT Spares
-dist/                  результат «собрать релиз» (в git не кладётся)
+  build_mod.py         builds both mods from the current game files: the framework mini-mod and HEMTT Spares
+                       (what comes from where - at the top of the file)
+  package.py           release packages + cover (the players' README - docs/Dist-readme.md)
+  art/                 graphics: circles (make_circle_spares, make_circle_repair), vehicle icons
+                       (make_unit_icons --kind spares|repair), mod icons (make_mod_icon [--framework])
+  tools/               gamefiles.py (finds the current version of a file in the game's layers), patch_table.py (edits
+                       Excel-XML tables), patch_army_toml.py, pak_extract.py (manual unpacking), table_grep.py
+re/                    tools for reverse engineering the game's DLLs (see re/README.md)
+tests/                 plugin tests (doctest + CTest), the game is not needed for them - see "Tests"
+docs/                  engine_notes.md - what is known about the engine; Dist-readme.md - the players' README in the archive;
+                       MODDING.md - the modders' guide (in the archive); the original HEMTT Spares plan
+dist/                  the result of "build the release" (not in git)
 ```
 
-## Подготовка
+## Setup
 
-1. **CLion** с MinGW из комплекта (GCC 15) — или любой x86_64 MinGW-w64 с UCRT.
-2. **Python 3.12+** в PATH и пакеты: `pip install pillow numpy` (графика), `capstone` — только для `re/`.
-3. **Игра** установлена. Путь — CMake-переменная `GAME_DIR`
-   (по умолчанию `C:/Games/Terminator Dark Fate - Defiance`; поменять: Settings → Build → CMake → CMake options
+1. **CLion** with its bundled MinGW (GCC 15) — or any x86_64 MinGW-w64 with UCRT.
+2. **Python 3.12+** in PATH and the packages: `pip install pillow numpy` (graphics), `capstone` — only for `re/`.
+3. **The game** installed. The path is the CMake variable `GAME_DIR`
+   (default `C:/Games/Terminator Dark Fate - Defiance`; to change it: Settings → Build → CMake → CMake options
    `-DGAME_DIR=...`).
-4. **`.env`** в корне (скопировать из `.env.example`): `DFD_PAK_PASSWORD` — пароль архивов игры, без него
-   сборка мода не достанет файлы игры. Можно задать и переменной окружения. В git `.env` не кладётся.
-   Для `re/` можно добавить `DFD_GAME_DIR`.
+4. **`.env`** in the root (copy from `.env.example`): `DFD_PAK_PASSWORD` — the game archives' password; without it
+   the mod build can't get the game files. It can also be an environment variable. `.env` is not put into git.
+   For `re/` you can add `DFD_GAME_DIR`.
 
-## Цели сборки
+## Build targets
 
-| Цель | Что делает |
+| Target | What it does |
 |---|---|
-| `winhttp`, `SparesSupply` | DLL (профиль CLion, обычно Debug). |
-| `spares_repair` | Тот же плагин для DefianceLoader: `spares_repair.dll` + `spares_repair.plugin.json` в папке сборки. |
-| `mod` | Собирает оба мода в `<build>/stage/mods/`: мини-мод фреймворка `SparesSupplyRepairFramework` и пример `HEMTT_Spares`. Файлы игры каждый раз берутся заново — после обновления игры достаточно пересобрать. |
-| `deploy` | Ставит в игру: `bin\winhttp.dll`, `bin\plugins\SparesSupply.dll`, `mods\SparesSupplyRepairFramework`, `mods\HEMTT_Spares`. Убирает плагин DefianceLoader-версии (`DefianceLoader\plugins\spares_repair.*`), если он там был. Игра должна быть закрыта; оба мода нужно один раз включить в меню MODS. |
-| `deploy_defiance` | То же для DefianceLoader: `DefianceLoader\plugins\spares_repair.dll` + манифест, оба мода; убирает `bin\plugins\SparesSupply.dll` (`bin\winhttp.dll`, сам DefianceLoader и чужие плагины остаются). Так `deploy` / `deploy_defiance` переключают игру между двумя версиями мода — удобно для проверки (см. «DefianceLoader»). |
-| `release` | **Собрать релиз**: отдельная Release-сборка DLL (оптимизация, без отладочной информации) + оба мода + два комплекта отдельной версии: `dist/SparesSupplyRepairFramework_v<версия>.zip` (только фреймворк: DLL и мини-мод) и `dist/HEMTT_Spares_v<версия>.zip` (фреймворк + HEMTT Spares), а также `dist/HEMTT_Spares_v<версия>_cover.png` (1920×1080) и `_banner.png` (1300×372). |
-| `release_defiance` | То же для DefianceLoader: `dist/SparesSupplyRepairFramework_DefianceLoader_v<версия>.zip` и `dist/HEMTT_Spares_DefianceLoader_v<версия>.zip` (`DefianceLoader/plugins/spares_repair.dll` + манифест вместо `bin/...`); обложка и превью — общие с `release`. Упаковка — `mod/package.py [--defiance] [--mod ...]`; README игрока — один `docs/Dist-readme.md`, блоки `{IF STANDALONE}` / `{IF DEFIANCE}` и `{IF FRAMEWORK}` / `{IF EXAMPLE}` (могут быть вложены) попадают только в свой комплект; `docs/MODDING.md` идёт во все. |
+| `winhttp`, `SparesSupply` | The DLLs (CLion profile, usually Debug). |
+| `spares_repair` | The same plugin for DefianceLoader: `spares_repair.dll` + `spares_repair.plugin.json` in the build folder. |
+| `mod` | Builds both mods into `<build>/stage/mods/`: the framework mini-mod `SparesSupplyRepairFramework` and the example `HEMTT_Spares`. The game files are taken anew every time — after a game update a rebuild is enough. |
+| `deploy` | Installs into the game: `bin\winhttp.dll`, `bin\plugins\SparesSupply.dll`, `mods\SparesSupplyRepairFramework`, `mods\HEMTT_Spares`. Removes the DefianceLoader version's plugin (`DefianceLoader\plugins\spares_repair.*`) if it was there. The game must be closed; both mods have to be enabled once in the MODS menu. |
+| `deploy_defiance` | The same for DefianceLoader: `DefianceLoader\plugins\spares_repair.dll` + manifest, both mods; removes `bin\plugins\SparesSupply.dll` (`bin\winhttp.dll`, DefianceLoader itself and other plugins stay). So `deploy` / `deploy_defiance` switch the game between the two versions of the mod — handy for checking (see "DefianceLoader"). |
+| `release` | **Build the release**: a separate Release build of the DLLs (optimized, no debug info) + both mods + two standalone packages: `dist/SparesSupplyRepairFramework_v<version>.zip` (the framework only: DLLs and mini-mod) and `dist/HEMTT_Spares_v<version>.zip` (framework + HEMTT Spares), plus `dist/HEMTT_Spares_v<version>_cover.png` (1920×1080) and `_banner.png` (1300×372). |
+| `release_defiance` | The same for DefianceLoader: `dist/SparesSupplyRepairFramework_DefianceLoader_v<version>.zip` and `dist/HEMTT_Spares_DefianceLoader_v<version>.zip` (`DefianceLoader/plugins/spares_repair.dll` + manifest instead of `bin/...`); cover and preview are shared with `release`. Packaging — `mod/package.py [--defiance] [--mod ...]`; the players' README is one `docs/Dist-readme.md`, the blocks `{IF STANDALONE}` / `{IF DEFIANCE}` and `{IF FRAMEWORK}` / `{IF EXAMPLE}` (may be nested) go only into their own package; `docs/MODDING.md` goes into all of them. |
 
-В CLion: выбрать конфигурацию **Build release** (или **Deploy to game**; для DefianceLoader — те же с пометкой
-**(DefianceLoader)**) и нажать Run — либо Build → Build Target.
-Из консоли:
+In CLion: pick the **Build release** configuration (or **Deploy to game**; for DefianceLoader — the same ones marked
+**(DefianceLoader)**) and press Run — or Build → Build Target.
+From a console:
 
 ```bash
 cmake --build cmake-build-debug --target release
 ```
 
-Версия — `MOD_VERSION` в `CMakeLists.txt`: попадает в имя архива, описание мода и лог плагина.
+The version is `MOD_VERSION` in `CMakeLists.txt`: it goes into the archive name, the mod description and the plugin log.
 
-Релиз воспроизводимый: DLL собираются байт в байт одинаково, архивы — тоже, при той же сборке игры. Каждая
-упаковка дописывает `dist/SHA256SUMS.txt`. Инструменты, шаги и суммы релиза — в [`BUILDING.md`](BUILDING.md)
-(на английском, для всех, кто хочет собрать сам и сверить).
+The release is reproducible: the DLLs build byte for byte the same, the archives too, with the same game build. Every
+packaging run appends to `dist/SHA256SUMS.txt`. Tools, steps and the release sums are in [`BUILDING.md`](BUILDING.md)
+(in English, for anyone who wants to build it themselves and compare).
 
-## Тесты
+## Tests
 
-Тесты закрепляют поведение плагина `SparesSupply.dll` и общего `common/patch.h`, чтобы рефакторинг ничего
-не сломал незаметно. Игра для них не нужна: вместо `logic.dll` и объектов движка — подделки
-(`tests/support/`), построенные по тем же предположениям, что зашиты в плагин. Поэтому обновление игры
-тесты не ломает.
+The tests pin down the behaviour of the `SparesSupply.dll` plugin and the shared `common/patch.h`, so that a refactoring
+breaks nothing unnoticed. The game is not needed for them: instead of `logic.dll` and engine objects there are fakes
+(`tests/support/`), built on the same assumptions the plugin has. So a game update doesn't break the tests.
 
-| Программа | Что проверяет |
+| Program | What it checks |
 |---|---|
-| `patch_h_test` | поиск по шаблонам и RTTI, набор правок «всё или ничего», лог, ожидание загрузки DLL |
-| `plugin_test` | режим F4 у HEMTT Spares / Repair / Supply, круг зоны, ремонт модулей и брони, оплата запчастями |
-| `plugin_install_test` | поиск адресов и установка правок в поддельной `logic.dll`; при любом несовпадении — не меняется ничего |
-| `plugin_defiance_test` | плагин DefianceLoader на поддельном загрузчике: просит ровно те же правки, сам не пишет, контракт совпадает, отказ при несовпадении, обе DLL сразу, `supply-radius`, настройка `log` |
-| `core_test` | правила ядра (`core/`) на простых тестовых портах, без подделки движка; ядро собирается без `windows.h` |
+| `patch_h_test` | pattern and RTTI search, the "all or nothing" patch set, log, waiting for a DLL to load |
+| `plugin_test` | F4 mode of HEMTT Spares / Repair / Supply, the zone circle, module and armor repair, paying with spare parts |
+| `plugin_install_test` | finding addresses and installing patches in a fake `logic.dll`; on any mismatch nothing changes |
+| `plugin_defiance_test` | the DefianceLoader plugin on a fake loader: asks for exactly the same patches, writes nothing itself, the contract matches, refuses on a mismatch, both DLLs at once, `supply-radius`, the `log` setting |
+| `core_test` | the core's rules (`core/`) on simple test ports, without a fake engine; the core builds without `windows.h` |
 
-Тесты собираются вместе с остальным (`-DDFD_TESTS=OFF` — отключить). В CLion — конфигурация **All CTest**; из
-консоли:
+The tests build together with the rest (`-DDFD_TESTS=OFF` turns them off). In CLion — the **All CTest**
+configuration; from a console:
 
 ```bash
 cmake --build cmake-build-debug && ctest --test-dir cmake-build-debug --output-on-failure
 ```
 
-Пометка `QUIRK:` в тестах — текущее поведение, которое выглядит странно; тест фиксирует его, чтобы
-оно не изменилось случайно.
+The `QUIRK:` mark in the tests is current behaviour that looks odd; the test pins it down so that it doesn't change
+by accident.
 
-## Проверка в игре
+## Checking in the game
 
 `bin\plugins\loader.log` — `loaded SparesSupply.dll`;
-`bin\plugins\SparesSupply.log` — `SparesSupply <версия> loaded` … `SparesSupply active`; во время работы
-HEMTT Repair — строки `repair: target=… +N hp, M armor layers`.
-Если там `not supported` — у игры другой код: смотреть, какой шаблон не нашёлся, и обновлять его через
-`re/mksig.py` (см. `docs/engine_notes.md`).
+`bin\plugins\SparesSupply.log` — `SparesSupply <version> loaded` … `SparesSupply active`; while HEMTT Repair works —
+lines `repair: target=… +N hp, M armor layers`.
+If it says `not supported`, the game has different code: see which pattern was not found and update it with
+`re/mksig.py` (see `docs/engine_notes.md`).
 
-С DefianceLoader — `DefianceLoader\logs\defiance-loader.log`, строки `sokolov.spares-repair`:
-`SparesSupply <версия> as a DefianceLoader plugin` … `SparesSupply staged`, затем состояние плагина `active`.
+With DefianceLoader — `DefianceLoader\logs\defiance-loader.log`, lines `sokolov.spares-repair`:
+`SparesSupply <version> as a DefianceLoader plugin` … `SparesSupply staged`, then the plugin state `active`.
 
 ## DefianceLoader
 
-Мод работает и сам (наш `winhttp.dll`), и как плагин [DefianceLoader](https://github.com/DefianceLoader/DefianceLoader)
-(`bin\dxgi.dll`). Правила и перехваты одни и те же; плагин просто отдаёт свои правки загрузчику, а тот
-следит, чтобы плагины не писали в одно место (подробно — `docs/ARCHITECTURE.md`, 5.7).
+The mod works both on its own (our `winhttp.dll`) and as a [DefianceLoader](https://github.com/DefianceLoader/DefianceLoader)
+plugin (`bin\dxgi.dll`). The rules and hooks are the same; the plugin just hands its patches to the loader, and the
+loader makes sure plugins don't write to the same place (in detail — `docs/ARCHITECTURE.md`, 5.7).
 
-Установка с DefianceLoader: `spares_repair.dll` и `spares_repair.plugin.json` — в `DefianceLoader\plugins\`,
-моды — в `mods\SparesSupplyRepairFramework` и `mods\HEMTT_Spares` (цель `deploy_defiance`). `bin\winhttp.dll` и `bin\plugins\SparesSupply.dll` при
-этом **не нужны** — если они остались, работает отдельная DLL, а плагин загрузчика отказывается и пишет в лог,
-что удалить. Нужен плагин загрузчика `defiance.core` (идёт с ним). Только одиночная игра: загрузчик не пустит
-в сетевую игру, пока плагин включён. Выключить — `enabled = false` в разделе `[sokolov.spares-repair]` файла
-`DefianceLoader\config\settings.ini`; `log = false` — без строк событий в логе.
+Installing with DefianceLoader: `spares_repair.dll` and `spares_repair.plugin.json` go to `DefianceLoader\plugins\`,
+the mods to `mods\SparesSupplyRepairFramework` and `mods\HEMTT_Spares` (target `deploy_defiance`). `bin\winhttp.dll`
+and `bin\plugins\SparesSupply.dll` are then **not needed** — if they are left, the standalone DLL works, and the
+loader plugin refuses and writes to the log what to remove. The loader plugin `defiance.core` is needed (it comes with
+the loader). Single player only: the loader won't let you into a network game while the plugin is enabled. To turn it
+off — `enabled = false` in the `[sokolov.spares-repair]` section of `DefianceLoader\config\settings.ini`;
+`log = false` — no event lines in the log.
 
-Если включён плагин загрузчика `defiance.supply-radius`, радиус зоны запчастей задаёт он (правку радиуса мы
-пропускаем).
+If the loader plugin `defiance.supply-radius` is enabled, it sets the spare parts zone radius (we skip our radius
+patch).
 
-**Куда пишет плагин** (всё — `logic.dll`, байтовые правки `patch_bytes`; RVA — GOG 2026-09-25, на других
-сборках адреса другие, плагин находит их при запуске):
+**Where the plugin writes** (all in `logic.dll`, `patch_bytes` byte patches; RVAs are GOG 2026-09-25, on other
+builds the addresses differ, the plugin finds them at startup):
 
-| Место | Правка | RVA (GOG 2026-09-25) |
+| Place | Patch | RVA (GOG 2026-09-25) |
 | --- | --- | --- |
-| сборщик описаний машин: флаг после `support` | `mov r15b,1` → `nop` (3 байта) | 0x51ce31 |
-| сборщик описаний танков: флаг после `support` | то же | 0x52238f |
-| сборщик описаний машин: флаг после `repair` | то же | 0x51ced2 |
-| сборщик описаний танков: флаг после `repair` | то же | 0x522432 |
-| поиск целей запчастей: `movss xmm2, [20.0]` | → `movss xmm2, [supplyRadius]` (8 байт; пропускается при `defiance.supply-radius`) | 0x439c67 |
-| `AmmoRechargerFacet` слоты 10 / 13 / 14 (`update`, `deactivate`, `activate`) | слот vtable, 8 байт | 0x710900, 0x710918, 0x710920 |
-| `RefuellerFacet` слоты 10 / 13 / 14 | слот vtable | 0x733d70, 0x733d88, 0x733d90 |
-| `SparesRechargerFacet` слоты 10 / 13 | слот vtable | 0x73d9a8, 0x73d9c0 |
-| `RepairerFacet` слоты 10 / 13 / 14 | слот vtable | 0x734028, 0x734040, 0x734048 |
-| функция круга `AmmoRechargerFacet`: `lea r8,[rax+0x120]` (материал) | заявлена без изменений; плагин меняет её сам на время перерисовки круга (7 байт) | 0x120687 |
+| car description builder: flag after `support` | `mov r15b,1` → `nop` (3 bytes) | 0x51ce31 |
+| tank description builder: flag after `support` | the same | 0x52238f |
+| car description builder: flag after `repair` | the same | 0x51ced2 |
+| tank description builder: flag after `repair` | the same | 0x522432 |
+| spare parts target search: `movss xmm2, [20.0]` | → `movss xmm2, [supplyRadius]` (8 bytes; skipped with `defiance.supply-radius`) | 0x439c67 |
+| `AmmoRechargerFacet` slots 10 / 13 / 14 (`update`, `deactivate`, `activate`) | vtable slot, 8 bytes | 0x710900, 0x710918, 0x710920 |
+| `RefuellerFacet` slots 10 / 13 / 14 | vtable slot | 0x733d70, 0x733d88, 0x733d90 |
+| `SparesRechargerFacet` slots 10 / 13 | vtable slot | 0x73d9a8, 0x73d9c0 |
+| `RepairerFacet` slots 10 / 13 / 14 | vtable slot | 0x734028, 0x734040, 0x734048 |
+| `AmmoRechargerFacet` circle function: `lea r8,[rax+0x120]` (material) | declared unchanged; the plugin changes it itself while the circle is redrawn (7 bytes) | 0x120687 |
 
-## Новый плагин
+## A new plugin
 
-1. `plugins/<имя>/<имя>.cpp`, подключить `common/patch.h`.
-2. В `DllMain` — открыть лог и `DllWatcher::watch(L"logic.dll", cb)`. В `cb`: `dfd::Image img(base)` →
-   найти адреса (`img.find(шаблон)`, `img.vtableOf("Класс@Leonardo")`) → `PatchSet` (`bytes` / `vslot`
-   с шаблоном начала функции) → `apply`.
-3. В `CMakeLists.txt`: `add_library(<имя> SHARED ...)`, `dfd_dll(<имя>)`, копирование в `deploy` и в `package.py`.
+1. `plugins/<name>/<name>.cpp`, include `common/patch.h`.
+2. In `DllMain` — open the log and `DllWatcher::watch(L"logic.dll", cb)`. In `cb`: `dfd::Image img(base)` →
+   find the addresses (`img.find(pattern)`, `img.vtableOf("Class@Leonardo")`) → `PatchSet` (`bytes` / `vslot`
+   with a pattern of the function start) → `apply`.
+3. In `CMakeLists.txt`: `add_library(<name> SHARED ...)`, `dfd_dll(<name>)`, copying in `deploy` and in `package.py`.
 
-`DllMain` плагина выполняется под loader lock (его вызывает `DllMain` загрузчика): никаких `LoadLibrary` и
-ожиданий других потоков. Колбэк `DllWatcher` вызывается после отображения `logic.dll`, до её кода.
+A plugin's `DllMain` runs under the loader lock (the loader's `DllMain` calls it): no `LoadLibrary` and no waiting
+for other threads. The `DllWatcher` callback is called after `logic.dll` is mapped, before its code runs.
 
-## Удаление из игры
+## Removing from the game
 
-Выключить оба мода в MODS, удалить `mods\HEMTT_Spares`, `mods\SparesSupplyRepairFramework`, `bin\winhttp.dll` и
-`bin\plugins`. С DefianceLoader — вместо двух последних удалить `DefianceLoader\plugins\spares_repair.dll` и
+Disable both mods in MODS, delete `mods\HEMTT_Spares`, `mods\SparesSupplyRepairFramework`, `bin\winhttp.dll` and
+`bin\plugins`. With DefianceLoader — instead of the last two, delete `DefianceLoader\plugins\spares_repair.dll` and
 `spares_repair.plugin.json`.
