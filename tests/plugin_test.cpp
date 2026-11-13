@@ -666,6 +666,63 @@ TEST_CASE_FIXTURE(RepairZone, "logic.dll modules: the target gets back the spare
     CHECK(sparesIn(d.modules) == 7);
 }
 
+// ================================================================ fire
+
+namespace {
+// An engine of 100 health at 20 (damage state 3) that burns in state 3, as in the game's tables:
+// smoke(inflammation)+unload_crew+deny_crew_load in the third state.
+ModuleSpec burningEngine() {
+    ModuleSpec engine{20, 100};
+    engine.stateEffects = {0, 0, 0x8000 | 0x100 | 0x800, 0};
+    return engine;
+}
+}  // namespace
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll fire: the burning state is read from the module description") {
+    ModuleSpec engine = burningEngine(), state2{20, 100}, never{20, 100};
+    state2.stateEffects = {0, 0x8000, 0, 0};
+    never.stateEffects = {0x10, 0x100, 0x800, 0x4000};  // other effects, no smoke
+    Damaged d(1, {engine, state2, never});
+    d.v.withCrew().blocked = true;
+    auto m = repairPort().modulesOf(vehicle(&d.v));
+    REQUIRE(m);
+    CHECK(m->burnState(0) == 3);
+    CHECK(m->burnState(1) == 2);
+    CHECK(m->burnState(2) == 0);
+    CHECK(m->boardingBlocked());
+}
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll fire: put out with incHealth(module, 0) and the boarding ban lifted") {
+    Damaged d(1, {burningEngine()});
+    Transport& crew = d.v.withCrew();
+    crew.blocked = true;
+    zone({&d.v.self});
+
+    tick(0.5f);
+    REQUIRE(g_incHealth.size() == 1);
+    CHECK(g_incHealth[0].modules == d.modules.p());
+    CHECK(g_incHealth[0].index == 0u);
+    CHECK(g_incHealth[0].amount == 0);
+    CHECK(crew.unblocks == 1);
+    CHECK_FALSE(crew.blocked);
+    CHECK(moduleHp(d.modules, 0) == 20);
+    CHECK(sparesIn(d.modules) == 7);       // the target pays nothing
+    CHECK(sparesIn(r.modules) == 10000);   // neither does HEMTT Repair
+
+    tick(0.5f);  // then repair as usual
+    CHECK(moduleHp(d.modules, 0) == 22);
+    CHECK(crew.unblocks == 1);
+}
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll fire: no ban (burned out, or no crew) - simply repaired") {
+    Damaged burnedOut(1, {burningEngine()}), noCrew(1, {burningEngine()});
+    burnedOut.v.withCrew();  // crew, but the ban is over
+    zone({&burnedOut.v.self, &noCrew.v.self});
+    tick(0.5f);
+    CHECK(moduleHp(burnedOut.modules, 0) == 22);
+    CHECK(moduleHp(noCrew.modules, 0) == 22);
+}
+
 // ================================================================ log
 
 TEST_CASE_FIXTURE(RepairZone, "Repair log: what was done and what it cost; at most 40 lines") {

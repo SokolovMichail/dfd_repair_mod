@@ -34,11 +34,18 @@ void showCircleWithPath(void* ammo, const char* path) {
 std::optional<int> relationOf(void* owner, void* target) {
     void* dip = reinterpret_cast<DiplomacyFn>(g_a.diplomacy)(vcall<void*>(owner, 0x78));
     if (!dip) return std::nullopt;
-    auto teamOf = [](void* e) { return *reinterpret_cast<void**>(vcall<char*>(e, 0xb0) + 0x20); };
+    auto teamOf = [](void* e) { return *reinterpret_cast<void**>(vcall<char*>(e, kEntityInfo) + 0x20); };
     void* ot = teamOf(owner);
     void* tt = teamOf(target);
     if (!ot || !tt) return std::nullopt;
     return vcall<int>(dip, 0xb0, vcall<int>(tt, 0x50), vcall<int>(ot, 0x50));
+}
+
+// The vehicle's TransportHelper (who may board it): entity info block +0x28 is its AiFacet, whose vfunc +0x2a0
+// hands out the helper. nullptr - no AiFacet or no helper.
+void* transportOf(void* entity) {
+    void* ai = *reinterpret_cast<void**>(vcall<char*>(entity, kEntityInfo) + kInfoAi);
+    return ai ? vcall<void*>(ai, kAiTransport) : nullptr;
 }
 
 // Armor layers of one side of a module: current thickness (vector<float>) and description (kArmorLayerSize
@@ -58,11 +65,11 @@ ArmorSide armorSide(char* mod, const char* desc, int side) {
 }
 
 // A DamageableModulesFacet seen as core::Modules. Module i: [facet+0xd0] + i*0x148; its description and
-// armor layers - see the layout constants in repair.h. The object is a thin view: it keeps only the facet
-// address and reads / writes game memory on every call, so it never goes stale.
+// armor layers - see the layout constants in repair.h. The object is a thin view: it keeps only the facet and
+// vehicle addresses and reads / writes game memory on every call, so it never goes stale.
 class EngineModules final : public core::Modules {
 public:
-    explicit EngineModules(void* facet) : m_(static_cast<char*>(facet)) {}
+    EngineModules(void* facet, void* entity) : m_(static_cast<char*>(facet)), entity_(entity) {}
 
     // [+0xcc]: the engine keeps it up to date itself (incHealth recalculates it).
     int totalHealth() const override { return *reinterpret_cast<int*>(m_ + kModulesTotalHealth); }
@@ -79,11 +86,8 @@ public:
     // Through the engine's own DamageableModulesFacet::incHealth - the same path crew repair takes, so the
     // engine recalculates total health, the module state ("damaged" / "destroyed"), visuals and sync itself.
     int addHealth(size_t i, int amount) override {
-        // incHealth is crew repair: it takes spare parts from the target itself. HEMTT Repair pays - give them back.
-        int targetSpares = sparesOfModules(m_);
         int before = health(i);
-        reinterpret_cast<IncHealthFn>(g_a.incHealth)(m_, i, amount);
-        sparesOfModules(m_) = targetSpares;
+        incHealth(i, amount);
         return health(i) - before;
     }
     int sides() const override { return kArmorSides; }
@@ -102,12 +106,43 @@ public:
     int spareParts() const override { return sparesOfModules(m_); }
     void setSpareParts(int value) override { sparesOfModules(m_) = value; }
 
+    // The description keeps the effect flags of states 1..4 (element s-1 for state s, as the game applies them
+    // in 0x25910); the first state with "smoke" is where the module catches fire.
+    int burnState(size_t i) const override {
+        auto flags = reinterpret_cast<const uint64_t* const*>(desc(i) + kDescStateEffects);  // begin, end
+        size_t n = flags[0] && flags[1] > flags[0] ? static_cast<size_t>(flags[1] - flags[0]) : 0;
+        for (size_t s = 0; s < n && s < 4; ++s)
+            if (flags[0][s] & kEffectSmoke) return static_cast<int>(s) + 1;
+        return 0;
+    }
+    // TransportHelper::isBlocked: the ban the game sets on deny_crew_load for damagedUnitBlockTime - as long as
+    // the flames of the same state play.
+    bool boardingBlocked() const override {
+        void* t = transportOf(entity_);
+        return t && vcall<bool>(t, kTransportIsBlocked);
+    }
+    // incHealth with amount 0 adds nothing and costs nothing, but it always starts by taking the flames off the
+    // vehicle's modules (0x25790) and marks the vehicle for sync - this is how crew repair puts a fire out. The
+    // boarding ban is lifted by the game only when a module leaves its state, so it is lifted here directly.
+    void putOutFire(size_t i) override {
+        incHealth(i, 0);
+        if (void* t = transportOf(entity_)) vcall<void>(t, kTransportUnblock);
+    }
+
 private:
     char* begin() const { return *reinterpret_cast<char**>(m_ + kModulesBegin); }
     char* mod(size_t i) const { return begin() + i * kModuleSize; }
     char* desc(size_t i) const { return *reinterpret_cast<char**>(mod(i) + kModuleDesc); }
+    // incHealth is crew repair: it takes spare parts from the target itself. HEMTT Repair pays instead, so they
+    // are given back.
+    void incHealth(size_t i, int amount) {
+        int targetSpares = sparesOfModules(m_);
+        reinterpret_cast<IncHealthFn>(g_a.incHealth)(m_, i, amount);
+        sparesOfModules(m_) = targetSpares;
+    }
 
-    char* m_;  // the DamageableModulesFacet
+    char* m_;        // the DamageableModulesFacet
+    void* entity_;   // the vehicle it belongs to
 };
 
 // What core::tickRepair needs, taken from logic.dll. A station is the AmmoRechargerFacet of HEMTT Repair (it,
@@ -132,7 +167,7 @@ public:
     // Infantry and other entities without a DamageableModulesFacet - nullptr.
     std::unique_ptr<core::Modules> modulesOf(core::Vehicle* v) override {
         void* f = findFacet(v, g_a.modulesVt);
-        return f ? std::make_unique<EngineModules>(f) : nullptr;
+        return f ? std::make_unique<EngineModules>(f, v) : nullptr;
     }
     void log(const char* line) override {
         if (g_logEvents) g_log("%s", line);

@@ -10,15 +10,22 @@
 //  9. While F4 mode is on, every kRepairPeriod it takes the vehicles the ammo component has already collected in
 //     its zone (the list [ammo+0x30], refreshed in its update), drops itself and enemies (the same diplomacy check
 //     as in canRecharge: relation 2 or 4 - no) and for each of them:
-//       - repairs every damaged module by kRepairFraction of its maximum through
-//         DamageableModulesFacet::incHealth (0x225ba0) - with total health and module state recalculated;
-//       - adds kArmorFraction of the original thickness to every armor layer (not above the original).
+//       - if a module is on fire (its burning state, while the crew may not board) - puts the fire out and does
+//         nothing else in this pulse: DamageableModulesFacet::incHealth (0x225ba0) with amount 0 takes the
+//         flames off (it always starts with 0x25790), then TransportHelper::unblock lifts the boarding ban.
+//         Free of charge;
+//       - otherwise repairs every damaged module by kRepairFraction of its maximum through incHealth - with total
+//         health and module state recalculated;
+//       - and adds kArmorFraction of the original thickness to every armor layer (not above the original).
 //     Pays with its own spare parts ([modules+0x130]): 1 per 1 health, kSparesPerMm per 1 mm of armor; the spare
 //     parts incHealth (crew repair) takes from the target are given back to it. Stock ran out - repair stops.
 //     Modules: [facet+0xd0..+0xd8], 0x148 bytes each: +0x00 description, +0x0c health, +0x28 + side*0x18 -
-//     current layer thickness (vector<float>), 6 sides. Description: +0x28 max health,
-//     +0x90 + side*0x18 - armor layers (16 bytes each, +0 original thickness). See DamageableModulesFacet::
-//     initialize 0x226280 and the damage function 0x310790 (armor wear).
+//     current layer thickness (vector<float>), 6 sides. Description: +0x28 max health, +0x30 effect flags per
+//     damage state (vector<uint64>, 4 states; 0x8000 - "smoke", the fire), +0x90 + side*0x18 - armor layers
+//     (16 bytes each, +0 original thickness). See DamageableModulesFacet::initialize 0x226280, the damage
+//     function 0x310790 (armor wear) and the module_function parser 0x3bbe80.
+//     Boarding ban: entity vfunc +0xb0 -> +0x28 AiFacet -> vfunc +0x2a0 TransportHelper: vfunc +0x248 isBlocked,
+//     +0x250 unblock (+0x240 block(seconds) is called by the game when a module reaches deny_crew_load).
 // 10. The zone circle is drawn with materials/rounds/repairRecharge.material (in the mod): for the time of the
 //     0x120610 call the ammoRecharge row in the material table is swapped with the repair path and put back.
 
@@ -39,6 +46,13 @@ constexpr size_t kModulesSpares = 0x130;  // the vehicle's spare parts (int; max
 constexpr size_t kModuleDesc = 0x00, kModuleHealth = 0x0c, kModuleArmor = 0x28;     // in the module
 constexpr size_t kDescMaxHealth = 0x28, kDescArmor = 0x90, kArmorLayerSize = 0x10;  // in the module description
 constexpr int kArmorSides = 6;
+// Module description: effect flags of damage states 1..4 (vector<uint64>: begin, end), and the "smoke" flag - the
+// module burns in that state (flames for damagedUnitBlockTime).
+constexpr size_t kDescStateEffects = 0x30;
+constexpr uint64_t kEffectSmoke = 0x8000;
+// Entity -> AiFacet -> TransportHelper (the boarding ban).
+constexpr size_t kEntityInfo = 0xb0, kInfoAi = 0x28, kAiTransport = 0x2a0;
+constexpr size_t kTransportIsBlocked = 0x248, kTransportUnblock = 0x250;
 
 // MSVC std::string (x64): buffer/pointer, size, capacity; with capacity >= 16 the text is behind the pointer.
 struct MsvcString {
