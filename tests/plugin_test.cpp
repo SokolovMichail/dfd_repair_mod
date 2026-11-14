@@ -723,6 +723,27 @@ TEST_CASE_FIXTURE(RepairZone, "logic.dll fire: no ban (burned out, or no crew) -
     CHECK(moduleHp(noCrew.modules, 0) == 22);
 }
 
+TEST_CASE_FIXTURE(RepairZone, "logic.dll abandoned: the team named \"abandoned\" is put out and repaired") {
+    // Three vehicles whose teams diplomacy calls hostile (relation 2): only the one on the game's "abandoned" team
+    // passes; "civilian" and a name that only starts the same do not.
+    Damaged left(9, {burningEngine()}), civilian(8, {burningEngine()}), other(7, {burningEngine()});
+    left.v.team.setName("abandoned");
+    civilian.v.team.setName("civilian");
+    other.v.team.setName("abandoned2");
+    for (Damaged* d : {&left, &civilian, &other}) d->v.withCrew().blocked = true;
+    g_relations[{9, 1}] = g_relations[{8, 1}] = g_relations[{7, 1}] = 2;
+    zone({&left.v.self, &civilian.v.self, &other.v.self});
+
+    tick(0.5f);
+    CHECK(left.v.transport.unblocks == 1);
+    CHECK(civilian.v.transport.unblocks == 0);
+    CHECK(other.v.transport.unblocks == 0);
+    tick(0.5f);
+    CHECK(moduleHp(left.modules, 0) == 22);
+    CHECK(moduleHp(civilian.modules, 0) == 20);
+    CHECK(moduleHp(other.modules, 0) == 20);
+}
+
 // ================================================================ log
 
 TEST_CASE_FIXTURE(RepairZone, "Repair log: what was done and what it cost; at most 40 lines") {

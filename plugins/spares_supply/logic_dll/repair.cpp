@@ -31,14 +31,27 @@ void showCircleWithPath(void* ammo, const char* path) {
 // Relation of target's team to owner's team - the same way as in AmmoRechargerFacet::canRecharge: world
 // diplomacy (0x541a00) compares the teams of the target and the owner. nullopt - no diplomacy, or one of them
 // has no team. Whether that relation allows repair is up to the core (core::mayRepair).
+// The entity's team (player): entity info block +0x20; may be null.
+void* teamOf(void* entity) { return *reinterpret_cast<void**>(vcall<char*>(entity, kEntityInfo) + kInfoTeam); }
+
 std::optional<int> relationOf(void* owner, void* target) {
     void* dip = reinterpret_cast<DiplomacyFn>(g_a.diplomacy)(vcall<void*>(owner, 0x78));
     if (!dip) return std::nullopt;
-    auto teamOf = [](void* e) { return *reinterpret_cast<void**>(vcall<char*>(e, kEntityInfo) + 0x20); };
     void* ot = teamOf(owner);
     void* tt = teamOf(target);
     if (!ot || !tt) return std::nullopt;
     return vcall<int>(dip, 0xb0, vcall<int>(tt, 0x50), vcall<int>(ot, 0x50));
+}
+
+// Abandoned: the entity's team is the game's team "abandoned" - the same name comparison the game itself makes in
+// TransportHelper (team vfunc +0x68 is the name, an MSVC std::string).
+bool abandonedOf(void* entity) {
+    void* team = teamOf(entity);
+    if (!team) return false;
+    auto name = vcall<const MsvcString*>(team, kTeamName);
+    if (!name) return false;
+    const char* text = name->capacity >= 16 ? name->ptr : reinterpret_cast<const char*>(name);
+    return name->size == strlen(kAbandonedTeam) && memcmp(text, kAbandonedTeam, name->size) == 0;
 }
 
 // The vehicle's TransportHelper (who may board it): entity info block +0x28 is its AiFacet, whose vfunc +0x2a0
@@ -164,6 +177,7 @@ public:
     std::optional<int> relation(core::Vehicle* owner, core::Vehicle* target) override {
         return relationOf(owner, target);
     }
+    bool abandoned(core::Vehicle* v) override { return abandonedOf(v); }
     // Infantry and other entities without a DamageableModulesFacet - nullptr.
     std::unique_ptr<core::Modules> modulesOf(core::Vehicle* v) override {
         void* f = findFacet(v, g_a.modulesVt);

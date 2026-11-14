@@ -9,7 +9,8 @@
 //     stubbed out.
 //  9. While F4 mode is on, every kRepairPeriod it takes the vehicles the ammo component has already collected in
 //     its zone (the list [ammo+0x30], refreshed in its update), drops itself and enemies (the same diplomacy check
-//     as in canRecharge: relation 2 or 4 - no) and for each of them:
+//     as in canRecharge: relation 2 or 4 - no; a vehicle on the game's team "abandoned" is kept whatever the
+//     relation) and for each of them:
 //       - if a module is on fire (its burning state, while the crew may not board) - puts the fire out and does
 //         nothing else in this pulse: DamageableModulesFacet::incHealth (0x225ba0) with amount 0 takes the
 //         flames off (it always starts with 0x25790), then TransportHelper::unblock lifts the boarding ban.
@@ -53,6 +54,10 @@ constexpr uint64_t kEffectSmoke = 0x8000;
 // Entity -> AiFacet -> TransportHelper (the boarding ban).
 constexpr size_t kEntityInfo = 0xb0, kInfoAi = 0x28, kAiTransport = 0x2a0;
 constexpr size_t kTransportIsBlocked = 0x248, kTransportUnblock = 0x250;
+// Entity info +0x20 is its team (player); the team's vfunc +0x68 hands out its name (std::string). A vehicle whose
+// crew has left it is moved to the game's team "abandoned" (see TransportHelper code around 0x476041, 0x46e8d1).
+constexpr size_t kInfoTeam = 0x20, kTeamName = 0x68;
+constexpr const char* kAbandonedTeam = "abandoned";
 
 // MSVC std::string (x64): buffer/pointer, size, capacity; with capacity >= 16 the text is behind the pointer.
 struct MsvcString {

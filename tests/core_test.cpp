@@ -17,6 +17,7 @@
 #include <array>
 #include <cstdio>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -136,11 +137,13 @@ public:
     std::map<std::pair<int, int>, int> relations;  // (target team, owner team) -> relation; default 0
     bool diplomacy = true;
     std::map<Vehicle*, VehicleData*> vehicles;  // a vehicle missing here has no modules (infantry)
+    std::set<Vehicle*> abandonedOnes;           // vehicles on the game's team "abandoned"
     std::vector<std::pair<int, int>> relationAsks;
     std::vector<std::string> lines, events;
 
     Vehicle* owner(Station* s) override { return owners[s]; }
     std::vector<Vehicle*> inZone(Station* s) override { return zones[s]; }
+    bool abandoned(Vehicle* v) override { return abandonedOnes.count(v) != 0; }
     std::optional<int> relation(Vehicle* owner, Vehicle* target) override {
         if (!diplomacy || !teams.count(owner) || !teams.count(target)) return std::nullopt;
         relationAsks.push_back({teams[target], teams[owner]});
@@ -762,6 +765,37 @@ TEST_CASE_FIXTURE(RepairScene, "Fire: enemies and HEMTT Repair itself are not pu
     tick(0.5f);
     CHECK(enemy.putOutCalls.empty());
     CHECK(truck.putOutCalls.empty());
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Abandoned: put out and then repaired, whatever diplomacy says about its team") {
+    // The crew bailed out of the fire, and the game moved the vehicle to its team "abandoned" (here team 9, which
+    // diplomacy calls hostile to HEMTT Repair's team 1).
+    VehicleData d = burning();
+    add(d, 9);
+    port.relations[{9, 1}] = 2;
+    port.abandonedOnes.insert(vehicle(d));
+
+    tick(0.5f);
+    CHECK(d.putOutCalls == std::vector<size_t>{0});
+    CHECK(port.relationAsks.empty());  // diplomacy is not even asked
+    tick(0.5f);
+    CHECK(d.modules[0].hp == 22);
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Abandoned: a vehicle without a team is still repaired") {
+    VehicleData d = damaged();
+    add(d, -1);
+    port.abandonedOnes.insert(vehicle(d));
+    tick(0.5f);
+    CHECK(d.modules[0].hp == 52);
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Abandoned: HEMTT Repair itself is still skipped") {
+    truck.modules = {ModuleData{50, 100}};
+    port.zones[s].push_back(vehicle(truck));
+    port.abandonedOnes.insert(vehicle(truck));
+    tick(0.5f);
+    CHECK(truck.modules[0].hp == 50);
 }
 
 TEST_CASE_FIXTURE(RepairScene, "Fire: the log says which vehicle was put out") {

@@ -100,6 +100,9 @@ public:
     virtual std::vector<Vehicle*> inZone(Station* s) = 0;
     // Relation of target's team to owner's team in world diplomacy; nullopt - no diplomacy or no team.
     virtual std::optional<int> relation(Vehicle* owner, Vehicle* target) = 0;
+    // The vehicle is abandoned: its crew has left it (e.g. bailed out of a fire), and the game moved it to its
+    // special team "abandoned", which anyone may capture from.
+    virtual bool abandoned(Vehicle* v) = 0;
     // The vehicle's damageable modules; nullptr - it has none (infantry).
     virtual std::unique_ptr<Modules> modulesOf(Vehicle* v) = 0;
     // Write a ready line to the log.
@@ -140,7 +143,8 @@ int extinguish(Modules& modules);
 Repaired repairVehicle(Modules& modules, Stock stock);
 
 // F4 mode of HEMTT Repair, called every frame: once every kRepairPeriod seconds - a repair pulse over the
-// vehicles in the station's zone. Skips HEMTT Repair itself, enemies and vehicles without modules. A vehicle
+// vehicles in the station's zone. Skips HEMTT Repair itself, enemies and vehicles without modules; abandoned
+// vehicles are repaired whatever diplomacy says about their team (whose they were is not known). A vehicle
 // on fire is put out first and gets nothing else in that pulse (repair goes on from the next one); putting out
 // is free, so it works with an empty stock too. Repair is paid with HEMTT Repair's own spare parts; with an
 // empty stock nothing is repaired. The first kRepairLogLines pulses with a result go to the log, and so does the

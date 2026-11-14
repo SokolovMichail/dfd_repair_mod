@@ -93,14 +93,25 @@ constexpr size_t kAmmoOff = 0x59, kSparesOff = 0x51, kRepairOff = 0x49;
 
 // ---------------------------------------------------------------- teams and diplomacy
 
-// A team (player): the plugin only needs its number (method in slot 10).
+// A team (player): the plugin needs its number (method in slot 10) and its name (slot 13, +0x68: an MSVC
+// std::string; the game calls the team of vehicles whose crew has left them "abandoned").
 struct Team {
     void** vtbl;
     int id;
+    MsvcString name{};
+    // Set the name the way MSVC keeps a short string: the text right in the object (capacity 15).
+    void setName(const char* text) {
+        name = MsvcString{};
+        size_t n = strlen(text);
+        memcpy(&name, text, n < 15 ? n : 15);
+        name.size = n < 15 ? n : 15;
+        name.capacity = 15;
+    }
 };
 inline int teamId(void* t) { return static_cast<Team*>(t)->id; }
-inline void* g_teamVtbl[11] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                               nullptr, nullptr, nullptr, nullptr, fn(&teamId)};
+inline const MsvcString* teamName(void* t) { return &static_cast<Team*>(t)->name; }
+inline void* g_teamVtbl[14] = {nullptr, nullptr, nullptr, nullptr,     nullptr, nullptr, nullptr,
+                               nullptr, nullptr, nullptr, fn(&teamId), nullptr, nullptr, fn(&teamName)};
 
 // World diplomacy: the relation between two teams (method in slot 22). The plugin treats relations 2 and
 // 4 as "must not repair" (same as HEMTT Supply does for ammo). The test sets relations; default is 0.
