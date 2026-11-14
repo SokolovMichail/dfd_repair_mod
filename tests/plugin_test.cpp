@@ -734,8 +734,10 @@ TEST_CASE_FIXTURE(RepairZone, "Repair log: what was done and what it cost; at mo
     snprintf(line, sizeof line, "repair: target=%p +20 hp, 0 armor layers, total hp 120; spent 20 spares, 9980 left",
              static_cast<void*>(&d.v));
     CHECK(log.has(line));
+    CHECK(log.has("repair: 1 vehicles in the zone"));
     for (int i = 0; i < 50; ++i) tick(0.5f);
     CHECK(log.count("repair: target=") == 40);
+    CHECK(log.count("vehicles in the zone") == 1);  // the zone did not change
 }
 
 TEST_CASE_FIXTURE(Engine, "Event log: at most 50 per run") {

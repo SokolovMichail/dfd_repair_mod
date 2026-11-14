@@ -104,7 +104,20 @@ void tickRepair(RepairPort& port, RepairState& state, Station* s, float dt) {
     const bool hadSpares = spares > 0;
     Stock stock{spares, state.debt[s]};
     // The zone is the list the game already collected for the station (the same radius as the drawn circle).
-    for (Vehicle* target : port.inZone(s)) {
+    std::vector<Vehicle*> zone = port.inZone(s);
+    // Diagnostics: who the game put into the zone is decided by the game, not by these rules (its collector has
+    // filters of its own), so the size of the list is logged whenever it changes.
+    size_t vehicles = 0;
+    for (Vehicle* v : zone) vehicles += v != nullptr;
+    auto known = state.zoneSizes.find(s);
+    if ((known == state.zoneSizes.end() || known->second != vehicles) && state.zoneLogLines < kRepairLogLines) {
+        ++state.zoneLogLines;
+        char line[64];
+        snprintf(line, sizeof line, "repair: %zu vehicles in the zone", vehicles);
+        port.log(line);
+    }
+    state.zoneSizes[s] = vehicles;
+    for (Vehicle* target : zone) {
         // Skip empty entries, HEMTT Repair itself, enemies and vehicles without a team.
         if (!target || target == owner || !mayRepair(port.relation(owner, target))) continue;
         std::unique_ptr<Modules> modules = port.modulesOf(target);
@@ -134,10 +147,12 @@ void tickRepair(RepairPort& port, RepairState& state, Station* s, float dt) {
     if (hadSpares && stock.spares <= 0) port.event("repair: out of spare parts", s);
 }
 
-// F4 mode is over: the next time it is switched on, the pulse comes at once and the debt starts from zero.
+// F4 mode is over: the next time it is switched on, the pulse comes at once, the debt starts from zero and the
+// zone size is logged again.
 void forgetRepair(RepairState& state, Station* s) {
     state.timers.erase(s);
     state.debt.erase(s);
+    state.zoneSizes.erase(s);
 }
 
 }  // namespace spares_supply::core

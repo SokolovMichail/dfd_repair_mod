@@ -506,6 +506,8 @@ inline void reset() {
     g_circleWritable = true;
     g_repairTimers.clear();
     g_armorDebt.clear();
+    g_repair.zoneSizes.clear();
+    g_repair.zoneLogLines = 0;
     g_events = 0;
     g_repairLogs = 0;
     g_faults = 0;

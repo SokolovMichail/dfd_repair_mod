@@ -575,12 +575,14 @@ TEST_CASE("Repair: each station has its own armor debt, and it survives between 
     CHECK(shared.debt[r2.s] == doctest::Approx(0.5f));
 }
 
-TEST_CASE_FIXTURE(RepairScene, "forgetRepair drops the station's timer and debt") {
+TEST_CASE_FIXTURE(RepairScene, "forgetRepair drops the station's timer, debt and zone size") {
     state.timers[s] = 0.3f;
     state.debt[s] = 0.5f;
+    state.zoneSizes[s] = 2;
     forgetRepair(state, s);
     CHECK(state.timers.count(s) == 0);
     CHECK(state.debt.count(s) == 0);
+    CHECK(state.zoneSizes.count(s) == 0);
 }
 
 TEST_CASE_FIXTURE(RepairScene, "Repair log: what was done and what it cost; at most 40 lines") {
@@ -590,9 +592,37 @@ TEST_CASE_FIXTURE(RepairScene, "Repair log: what was done and what it cost; at m
     char line[160];
     snprintf(line, sizeof line, "repair: target=%p +20 hp, 0 armor layers, total hp 120; spent 20 spares, 9980 left",
              static_cast<void*>(&d));
-    REQUIRE(port.lines.size() == 1);
-    CHECK(port.lines[0] == line);
+    REQUIRE(port.lines.size() == 2);
+    CHECK(port.lines[0] == "repair: 1 vehicles in the zone");
+    CHECK(port.lines[1] == line);
     for (int i = 0; i < 50; ++i) tick(0.5f);
+    CHECK(port.lines.size() == 41u);  // 40 repair lines; the zone did not change
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Repair log: the number of vehicles in the zone, whenever it changes") {
+    VehicleData a = damaged(), b = damaged();
+    a.modules[0].hp = b.modules[0].hp = 100;  // intact: no repair lines, only the zone
+    add(a);
+    port.zones[s].push_back(nullptr);  // empty entries are not counted
+    tick(0.5f);
+    tick(0.5f);  // the same - not logged again
+    add(b);
+    tick(0.5f);
+    port.zones[s].clear();
+    tick(0.5f);
+    CHECK(port.lines == std::vector<std::string>{"repair: 1 vehicles in the zone", "repair: 2 vehicles in the zone",
+                                                 "repair: 0 vehicles in the zone"});
+
+    // After F4 mode ends, the next pulse logs the zone again; at most 40 such lines per run.
+    forgetRepair(state, s);
+    tick(0.5f);
+    CHECK(port.lines.back() == "repair: 0 vehicles in the zone");
+    CHECK(port.lines.size() == 4u);
+    for (int i = 0; i < 60; ++i) {
+        if (i % 2) add(a);
+        else port.zones[s].clear();
+        tick(0.5f);
+    }
     CHECK(port.lines.size() == 40u);
 }
 
@@ -740,8 +770,8 @@ TEST_CASE_FIXTURE(RepairScene, "Fire: the log says which vehicle was put out") {
     tick(0.5f);
     char line[160];
     snprintf(line, sizeof line, "repair: fire out target=%p, 1 burning modules", static_cast<void*>(&d));
-    REQUIRE(port.lines.size() == 1);
-    CHECK(port.lines[0] == line);
+    REQUIRE(port.lines.size() == 2);  // the zone line comes first
+    CHECK(port.lines[1] == line);
 }
 
 // ================================================================ HEMTT Spares rules

@@ -108,11 +108,14 @@ public:
     virtual void event(const char* what, Station* s) = 0;
 };
 
-// Per-station repair state: seconds to the next pulse and the unpaid armor price; plus the log line counter.
+// Per-station repair state: seconds to the next pulse, the unpaid armor price and how many vehicles the zone held
+// at the last pulse; plus the log line counters.
 struct RepairState {
     std::unordered_map<Station*, float> timers;
     std::unordered_map<Station*, float> debt;
+    std::unordered_map<Station*, size_t> zoneSizes;
     int logLines = 0;
+    int zoneLogLines = 0;
 };
 
 // May HEMTT Repair repair a vehicle in this relation? Own and allied - yes; relation 2 or 4 (as for
@@ -140,10 +143,11 @@ Repaired repairVehicle(Modules& modules, Stock stock);
 // vehicles in the station's zone. Skips HEMTT Repair itself, enemies and vehicles without modules. A vehicle
 // on fire is put out first and gets nothing else in that pulse (repair goes on from the next one); putting out
 // is free, so it works with an empty stock too. Repair is paid with HEMTT Repair's own spare parts; with an
-// empty stock nothing is repaired. The first kRepairLogLines pulses with a result go to the log.
+// empty stock nothing is repaired. The first kRepairLogLines pulses with a result go to the log, and so does the
+// number of vehicles in the zone whenever it changes (up to kRepairLogLines such lines, counted separately).
 void tickRepair(RepairPort& port, RepairState& state, Station* s, float dt);
 
-// F4 mode is over: forget the station's pulse timer and armor debt.
+// F4 mode is over: forget the station's pulse timer, armor debt and zone size.
 void forgetRepair(RepairState& state, Station* s);
 
 }  // namespace spares_supply::core
