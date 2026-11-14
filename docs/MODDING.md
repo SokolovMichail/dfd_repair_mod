@@ -57,7 +57,7 @@ only resupplies spare parts on a direct order, and has no F4 zone.
 
 The repair vehicle:
 - does not repair itself or destroyed vehicles;
-- repairs only own and allied vehicles;
+- repairs only own and allied vehicles, and abandoned ones (whose crew has left them, e.g. bailed out of a fire);
 - puts out a burning vehicle before repairing it (free of charge);
 - stops repairing when its spare parts run out (it still puts out fires).
 

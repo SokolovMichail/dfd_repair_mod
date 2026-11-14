@@ -251,7 +251,9 @@ HEMTT Repair drives, but repairs nothing.
 `bin\plugins\SparesSupply.log`: version, `logic.dll` address, found vtables and functions, the list of applied
 patches with RVAs. During the game — the first 50 events (spare parts and repair on/off, circle redraw), the first
 20 seconds of the spare parts zone's work (`radius`, `targets` — how many vehicles the component found in the zone) and
-the first 40 repair pulses (`repair: target=… +N hp, M armor layers, total hp …`). Faults are always logged, even with
+the first 40 repair pulses (`repair: target=… +N hp, M armor layers, total hp …`, or `repair: fire out target=…`), and
+the number of vehicles the game put into the repair zone whenever it changes (`repair: N vehicles in the zone`, up to
+40 lines; who gets into that list is up to the game's own collector `0x120470`). Faults are always logged, even with
 `log = false`: `fault in F4 tick: exception C0000005 at logic.dll+0012ABCD - skipped (fault 1 of 3)` — in which
 part, the exception code, the module and the offset in it; after the third — `too many faults: the mod's supply work is off …`.
 
@@ -288,6 +290,9 @@ in the list:
 1. Skips HEMTT Repair itself and non-friendlies. "Friendly" means the same as in `AmmoRechargerFacet::canRecharge`:
    world diplomacy (`0x541a00`) compares the teams of the target and the owner; relation 2 or 4 — not allowed. A target
    without a team — not allowed either. So HEMTT Repair repairs the same vehicles HEMTT Supply would give ammo to.
+   **Except abandoned vehicles:** when the crew leaves a vehicle (bails out of a fire, for one), the game moves it to
+   its own team named `abandoned` (team `vfunc(+0x68)` is the name), which diplomacy does not call friendly. Such a
+   vehicle is kept without asking diplomacy: anyone may capture it, and whose it was is not known.
 2. Finds the vehicle's `DamageableModulesFacet` (infantry has none — skip). A vehicle with total health 0
    (destroyed) is skipped.
    **Fire first.** If a module is in its burning damage state (the first state whose effects in the module

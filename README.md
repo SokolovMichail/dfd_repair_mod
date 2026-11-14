@@ -25,7 +25,7 @@ Resistance campaign — see below.
 | Vehicle | sysname | What it does | Zone circle | Campaign |
 |---|---|---|---|---|
 | **HEMTT Spares** | `Fnd_HEMTT_spares` | refills the spare parts of every vehicle in the zone; or an order for one vehicle | wrenches | 1 in the first sector shop + in the same rewards as HEMTT Supply |
-| **HEMTT Repair** (test) | `Fnd_HEMTT_repairer` | every 0.5 s puts out own and allied vehicles in the zone that are on fire (free: flames off, the crew may board again; repair from the next pulse), otherwise repairs all their damaged modules (+2% of the maximum) and restores the armor (+2% of each layer's original thickness); does not repair itself or destroyed vehicles; pays with its own spare parts (10000): 1 per health point, 1 per 1 mm of armor, takes nothing from the target | wrench and hammer | 1 in the first sector shop |
+| **HEMTT Repair** (test) | `Fnd_HEMTT_repairer` | every 0.5 s puts out own, allied and abandoned (crew has left) vehicles in the zone that are on fire (free: flames off, the crew may board again; repair from the next pulse), otherwise repairs all their damaged modules (+2% of the maximum) and restores the armor (+2% of each layer's original thickness); does not repair itself or destroyed vehicles; pays with its own spare parts (10000): 1 per health point, 1 per 1 mm of armor, takes nothing from the target | wrench and hammer | 1 in the first sector shop |
 
 Three parts; the first two are the framework, the third is the example:
 
@@ -150,7 +150,8 @@ by accident.
 
 `bin\plugins\loader.log` — `loaded SparesSupply.dll`;
 `bin\plugins\SparesSupply.log` — `SparesSupply <version> loaded` … `SparesSupply active`; while HEMTT Repair works —
-lines `repair: target=… +N hp, M armor layers`, and `repair: fire out target=…` when it puts a fire out.
+lines `repair: N vehicles in the zone` (whenever the zone changes), `repair: target=… +N hp, M armor layers`, and
+`repair: fire out target=…` when it puts a fire out.
 If it says `not supported`, the game has different code: see which pattern was not found and update it with
 `re/mksig.py` (see `docs/engine_notes.md`).
 

@@ -47,6 +47,8 @@ HEMTT Repair - a mobile repair workshop.
   of armor. The repaired vehicle pays nothing. When its stock runs out, it stops repairing.
 * A burning vehicle is put out first: the flames go off at once and the crew may get back in.
   Putting out is free and works with an empty stock too; repair follows.
+* Abandoned vehicles (the crew has left them, e.g. bailed out of a fire) are put out and
+  repaired too, whoever they belonged to.
 * It does not repair itself or destroyed vehicles.
 * Resistance campaign: one in the first sector shop.
 * Main campaign: one in every shop.
@@ -239,6 +241,8 @@ HEMTT Repair - передвижная ремонтная мастерская.
   У ремонтируемой машины ничего не списывается. Запас кончился - ремонт останавливается.
 * Горящую машину сначала тушит: пламя сразу гаснет, экипаж может вернуться в машину.
   Тушение бесплатное и работает даже с пустым запасом; потом идёт ремонт.
+* Брошенную технику (экипаж её покинул, например выскочил из горящей машины) тоже тушит и
+  чинит, чья бы она ни была.
 * Себя и уничтоженную технику не чинит.
 * Кампания Resistance: одна в магазине первого сектора.
 * Основная кампания: по одной в каждом магазине.

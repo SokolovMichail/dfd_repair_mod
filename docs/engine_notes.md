@@ -146,8 +146,15 @@ What a player sees as a burning vehicle: flames on a module and the crew bailing
   update, counts `[+0x250]` down and clears the flag at 0. Reached as `[entity->vfunc(+0xb0) + 0x28]` (AiFacet) →
   `vfunc(+0x2a0)` (`0x252a0`: `[ai+0x190]→[+0x10]`). Only `0x25910` calls `block`: for `deny_crew_load` (60 s) and
   for `burn_smoke` (99999 s).
+- **Abandoned vehicles.** `unload_crew` (`0x26620`) empties the vehicle through the TransportHelper, and the vehicle
+  ends up on a special team (player) named `abandoned`; there is also `civilian`. A team keeps its name as an MSVC
+  `std::string` at `+0x120`, handed out by `vfunc(+0x68)`; the game compares it with `"abandoned"` / `"civilian"`
+  itself (TransportHelper code at `0x476041`, `0x46e8d1`). The entity's team is `[entity->vfunc(+0xb0) + 0x20]`.
+  World diplomacy does not call `abandoned` friendly, so a burning vehicle whose crew bailed out fails a
+  `canRecharge`-style team check.
 - **HEMTT Repair puts a fire out** (plugin): a module in its `smoke` state (or a worse one) while boarding is
-  blocked — `incHealth(i, 0)` (flames off, sync) + `unblock`. Health and spare parts stay as they are.
+  blocked — `incHealth(i, 0)` (flames off, sync) + `unblock`. Health and spare parts stay as they are. Vehicles on
+  the `abandoned` team are put out and repaired whatever diplomacy says.
 - **The engine's real fire, `burn_smoke`** (`0x10000`), is not used by any table of the game. When a module enters
   a state with it, `0x25910` starts the flames with a lifetime of 99999 s, blocks boarding for 99999 s and writes
   the module's index to `AiFacet+0x2a4` (`+0x2a8` = 0; -1 — nothing burns, set only by the AiFacet constructors
