@@ -121,9 +121,11 @@ struct RepairState {
     int zoneLogLines = 0;
 };
 
-// May HEMTT Repair repair a vehicle in this relation? Own and allied - yes; relation 2 or 4 (as for
-// HEMTT Supply's ammo) or unknown - no.
-bool mayRepair(std::optional<int> relation);
+// Whom HEMTT Repair (owner) puts out and repairs - the one place this is decided:
+//  - not an empty zone entry, not HEMTT Repair itself;
+//  - an abandoned vehicle (the game's team "abandoned") - yes, without asking diplomacy;
+//  - otherwise own and allied - yes; relation 2 or 4 (as for HEMTT Supply's ammo) or unknown - no.
+bool mayRepair(RepairPort& port, Vehicle* owner, Vehicle* target);
 
 // The modules that are on fire now: in their burning state (burnState) while the game still blocks boarding -
 // the ban runs exactly as long as the flames, so with the ban over the fire has burned out by itself. Modules

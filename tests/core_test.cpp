@@ -439,13 +439,40 @@ TEST_CASE("Stock ran out in the middle of a side - that side's armor is finished
 
 // ================================================================ whom HEMTT Repair repairs
 
-TEST_CASE("mayRepair: own side and allies - yes; relation 2 or 4, or unknown - no") {
-    CHECK(mayRepair(0));
-    CHECK(mayRepair(1));
-    CHECK(mayRepair(3));
-    CHECK_FALSE(mayRepair(2));
-    CHECK_FALSE(mayRepair(4));
-    CHECK_FALSE(mayRepair(std::nullopt));  // no diplomacy or no team
+TEST_CASE_FIXTURE(RepairScene, "mayRepair: own side and allies - yes; relation 2 or 4, or unknown - no") {
+    Vehicle* owner = vehicle(truck);
+    int targets[6] = {};
+    for (int team = 2; team <= 6; ++team) port.teams[vehicle(targets[team - 2])] = team;
+    port.relations[{3, 1}] = 1;
+    port.relations[{4, 1}] = 2;
+    port.relations[{5, 1}] = 3;
+    port.relations[{6, 1}] = 4;
+    CHECK(mayRepair(port, owner, vehicle(targets[0])));        // relation 0
+    CHECK(mayRepair(port, owner, vehicle(targets[1])));        // 1
+    CHECK_FALSE(mayRepair(port, owner, vehicle(targets[2])));  // 2
+    CHECK(mayRepair(port, owner, vehicle(targets[3])));        // 3
+    CHECK_FALSE(mayRepair(port, owner, vehicle(targets[4])));  // 4
+    CHECK_FALSE(mayRepair(port, owner, vehicle(targets[5])));  // no team
+    port.diplomacy = false;
+    CHECK_FALSE(mayRepair(port, owner, vehicle(targets[0])));  // no diplomacy
+}
+
+TEST_CASE_FIXTURE(RepairScene, "mayRepair: never an empty entry or HEMTT Repair itself") {
+    CHECK_FALSE(mayRepair(port, vehicle(truck), nullptr));
+    CHECK_FALSE(mayRepair(port, vehicle(truck), vehicle(truck)));
+    port.abandonedOnes.insert(vehicle(truck));  // not even if the game called it abandoned
+    CHECK_FALSE(mayRepair(port, vehicle(truck), vehicle(truck)));
+    CHECK(port.relationAsks.empty());
+}
+
+TEST_CASE_FIXTURE(RepairScene, "mayRepair: an abandoned vehicle - yes, without asking diplomacy") {
+    int left = 0, noTeam = 0;
+    port.teams[vehicle(left)] = 9;
+    port.relations[{9, 1}] = 2;  // the "abandoned" team is hostile in diplomacy
+    port.abandonedOnes = {vehicle(left), vehicle(noTeam)};
+    CHECK(mayRepair(port, vehicle(truck), vehicle(left)));
+    CHECK(mayRepair(port, vehicle(truck), vehicle(noTeam)));
+    CHECK(port.relationAsks.empty());
 }
 
 // ================================================================ repair pulse over the zone

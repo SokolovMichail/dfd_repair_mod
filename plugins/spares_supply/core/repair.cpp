@@ -9,10 +9,17 @@
 
 namespace spares_supply::core {
 
-// The same check HEMTT Supply uses before handing out ammo (AmmoRechargerFacet::canRecharge): world diplomacy
-// gives the relation of the target's team to the owner's team, and 2 and 4 mean "hostile". No diplomacy or a
-// vehicle without a team (nullopt) - not allowed either.
-bool mayRepair(std::optional<int> relation) { return relation && *relation != 2 && *relation != 4; }
+// An abandoned vehicle is on the game's own team "abandoned" - not ours, so diplomacy would turn it away; but its
+// crew has only left it (bailing out of a fire, for one) and anyone may take it back, so it is served. Everyone
+// else gets the same check HEMTT Supply uses before handing out ammo (AmmoRechargerFacet::canRecharge): world
+// diplomacy gives the relation of the target's team to the owner's team, and 2 and 4 mean "hostile". No
+// diplomacy or a vehicle without a team (nullopt) - not allowed either.
+bool mayRepair(RepairPort& port, Vehicle* owner, Vehicle* target) {
+    if (!target || target == owner) return false;
+    if (port.abandoned(target)) return true;
+    std::optional<int> relation = port.relation(owner, target);
+    return relation && *relation != 2 && *relation != 4;
+}
 
 // The game's formula (DamageableModulesFacet, the same in incHealth, decHealth and 0x24d50): full health is
 // state 0, otherwise the float ratio health / maximum picks the state. A ratio of exactly 0 is "destroyed".
@@ -118,11 +125,7 @@ void tickRepair(RepairPort& port, RepairState& state, Station* s, float dt) {
     }
     state.zoneSizes[s] = vehicles;
     for (Vehicle* target : zone) {
-        // Skip empty entries, HEMTT Repair itself, enemies and vehicles without a team. An abandoned vehicle is on
-        // the game's own team "abandoned" - not ours, so diplomacy would turn it away; but its crew has only left
-        // it (bailing out of a fire, for one), anyone may take it back, so it is put out and repaired.
-        if (!target || target == owner) continue;
-        if (!port.abandoned(target) && !mayRepair(port.relation(owner, target))) continue;
+        if (!mayRepair(port, owner, target)) continue;  // whom HEMTT Repair serves - all in mayRepair
         std::unique_ptr<Modules> modules = port.modulesOf(target);
         if (!modules) continue;  // infantry: nothing to repair
         // Put out first, then repair: a vehicle on fire gets only that in this pulse. Without spare parts the
