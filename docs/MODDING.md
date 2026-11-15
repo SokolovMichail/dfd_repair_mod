@@ -7,8 +7,9 @@ can use them; your mod only describes the vehicle in the game's tables. No code 
   zone, the way HEMTT Supply hands out ammunition. The zone is drawn with wrench icons.
 - **Repair zone.** A deployed vehicle repairs own and allied vehicles in its zone, twice a second: every
   damaged module gets 2% of its maximum health, and every worn armor layer 2% of its original thickness. It
-  pays with its own spare parts: 1 per health point, 1 per millimetre of armor. The zone is drawn with
-  wrench-and-hammer icons.
+  pays with its own spare parts: 1 per health point, 1 per millimetre of armor. A vehicle on fire is put out
+  first, for free: the flames go off and its crew may board again; repair starts on the next pulse. The zone
+  is drawn with wrench-and-hammer icons.
 
 HEMTT Spares, the framework's example mod, adds one vehicle of each kind.
 
@@ -56,8 +57,9 @@ only resupplies spare parts on a direct order, and has no F4 zone.
 
 The repair vehicle:
 - does not repair itself or destroyed vehicles;
-- repairs only own and allied vehicles;
-- stops when its spare parts run out.
+- repairs only own and allied vehicles, and abandoned ones (whose crew has left them, e.g. bailed out of a fire);
+- puts out a burning vehicle before repairing it (free of charge);
+- stops repairing when its spare parts run out (it still puts out fires).
 
 Without the framework it does nothing.
 
