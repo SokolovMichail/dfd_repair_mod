@@ -72,6 +72,10 @@
   `materials/rounds/sparesRecharge.material`, `locale/cars.xml`, `locale/encyclopedia_loc.xml`,
   `locale/encyclopedia_dlc_loc.xml`. Из нескольких таких модов в игре окажется файл только одного
   (по приоритету в меню MODS) — машины или чужие правки пропадут.
+  Сборка для слияния таблиц DefianceLoader (`HEMTT_Spares_DefianceLoader_TableMerge`) таблицы не заменяет, а
+  дописывает в них свои строки (нужно включить `enabled = true` в разделе `[defiance.table-merge]` файла
+  `DefianceLoader\config\settings.ini`). Но она добавляет только сами машины: ни в магазины, ни в армию скирмиша
+  они в ней не попадают.
 - Конфликтует с другими программами, которые тоже используют `bin\winhttp.dll` (некоторые трейнеры).
 - Обновление игры может заменить эти файлы — тогда понадобится новая версия мода.
 - Антивирус может насторожиться на подмену `winhttp.dll` — это ожидаемо для такого способа подключения.
@@ -168,6 +172,9 @@ changes nothing.
 - Conflicts with mods that replace the same game files: `scripts/species/cars.xml`, `shop_presets.xml`,
   `encyclopedia.xml`, `encyclopedia_dlc.xml`, `scripts/default_army.toml`, `materials/rounds/sparesRecharge.material`,
   `locale/cars.xml`, `locale/encyclopedia_loc.xml`, `locale/encyclopedia_dlc_loc.xml`.
+  The DefianceLoader table-merge package (`HEMTT_Spares_DefianceLoader_TableMerge`) does not replace tables: it adds
+  its rows to them (turn on `enabled = true` under `[defiance.table-merge]` in `DefianceLoader\config\settings.ini`).
+  It adds the vehicles only, though: in that package they are in no shop and not in the skirmish army.
 - Conflicts with other tools that also use `bin\winhttp.dll` (some trainers).
 - A game update may replace those files; a new mod version will then be needed.
 - An antivirus may flag the `winhttp.dll` replacement — expected for this loading technique.

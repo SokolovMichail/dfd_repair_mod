@@ -58,6 +58,18 @@ So the project has no copies of game files, and after a game update rebuilding t
 The edits are made by [`patch_table.py`](../mod/tools/patch_table.py): it treats Excel-XML as text and changes
 only the needed cells; the rest of the file is kept byte for byte.
 
+**The table-merge build** (`build_mod.py --tables patch`, the `HEMTT_Spares_DefianceLoader_TableMerge` package).
+DefianceLoader's `defiance.table-merge` plugin can merge a mod's `<table>.<mod folder>.patch.xml` into the game's
+table row by row (matched on `sysname`; an empty patch cell keeps the stock value, a row the table lacks is
+appended). So the same edits are made to a scratch copy, and
+[`make_table_patch.py`](../mod/tools/make_table_patch.py) writes the difference from the stock table as the patch:
+our new rows in full, changed cells only, the stock file's styles, cells copied as they are. It then reads the patch
+back, merges it into the stock table the loader's way and fails the build unless the result is exactly our table.
+Shops are left out: a shop's vehicle list is one cell, the merge cannot append to it, and two mods adding vehicles to
+the same shop would still clash. So is `default_army.toml`, which is not a table. That build therefore defines the
+vehicles (cars, encyclopedia, localization in every layer) and puts them in no shop. The DefianceLoader plugin warns
+at startup when the merge is off and an enabled mod ships table patches (`logic_dll/defiance.h`).
+
 Both vehicles are described in the `UNITS` list at the top of `build_mod.py` (name, description, table columns, icon,
 shop); each table is patched in turn for all vehicles in the list. A new vehicle on the same model is added there too.
 
@@ -372,11 +384,14 @@ cmake --build <build> --target release
   ├─ mod/package.py         → dist/SparesSupplyRepairFramework_v<MOD_VERSION>.zip   (framework only)
   └─ mod/package.py --mod   → dist/HEMTT_Spares_v<MOD_VERSION>.zip  (framework + example, + _cover.png, _banner.png)
 cmake --build <build> --target release_defiance
-  └─ the same with spares_repair.dll: SparesSupplyRepairFramework_DefianceLoader_v…zip, HEMTT_Spares_DefianceLoader_v…zip
+  ├─ the same with spares_repair.dll: SparesSupplyRepairFramework_DefianceLoader_v…zip, HEMTT_Spares_DefianceLoader_v…zip
+  ├─ mod/build_mod.py --tables patch → <build>/release/stage/mods_tablemerge/{…,HEMTT_Spares}
+  └─ mod/package.py --defiance --tablemerge --mod → HEMTT_Spares_DefianceLoader_TableMerge_v…zip
 ```
 
-Four bundles — for a single mod page: a player takes the framework alone (if installing someone else's vehicles built
-on it) or together with HEMTT Spares, in the standalone version or under DefianceLoader. The player README is the same
+Five bundles — for a single mod page: a player takes the framework alone (if installing someone else's vehicles built
+on it) or together with HEMTT Spares, in the standalone version or under DefianceLoader; under DefianceLoader HEMTT
+Spares also comes as the table-merge build (vehicles only, see section 2). The player README is the same
 for all of them ([`Dist-readme.md`](Dist-readme.md), variants as `{IF ...}` blocks), and the modder guide
 ([`MODDING.md`](MODDING.md)) goes into all of them.
 
@@ -389,6 +404,7 @@ which exist in any Windows 10/11 (in the MinGW bundled with CLion, the static `l
 - Single player only: the patches change the game logic, multiplayer would desync.
 - HEMTT Repair is a test vehicle: light vehicle class, repair speeds not tuned, tested offline only.
 - Conflicts with mods that replace the same files (list in [`INSTALL.md`](../INSTALL.md)), and with other
-  programs that use `bin\winhttp.dll`.
+  programs that use `bin\winhttp.dll`. The table-merge build does not replace tables, but it adds the vehicles to no
+  shop or army.
 - If the game updates and the code changes, the plugin will refuse to work (see the log); the patterns must be updated:
   find the new spot in `re/` and get a pattern with `re/mksig.py`.
