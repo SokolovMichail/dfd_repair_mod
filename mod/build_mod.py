@@ -1,21 +1,21 @@
-"""Собирает два мода из актуальных файлов установленной игры:
+"""Builds two mods from the current files of the installed game:
 
-    python mod/build_mod.py --game <папка игры> --out <папка HEMTT_Spares> --framework-out <папка фреймворка>
-                            [--cache <кэш>] [--version 1.0]
+    python mod/build_mod.py --game <game folder> --out <HEMTT_Spares folder> --framework-out <framework folder>
+                            [--cache <cache>] [--version 1.0]
 
-- мини-мод фреймворка SparesSupply & Repair Framework (--framework-out, mods\\SparesSupplyRepairFramework):
-  только материалы и текстуры кругов зоны F4, которыми плагин рисует зоны запчастей и ремонта. Таблиц в нём нет,
-  поэтому он ни с чем не конфликтует; нужен любой машине на фреймворке;
-- мод-пример HEMTT Spares (--out, mods\\HEMTT_Spares): сами машины - таблицы, магазины, армия, энциклопедия,
-  локализация, значки. Без мини-мода фреймворка круги его машин не нарисуются.
+- the SparesSupply & Repair Framework mini-mod (--framework-out, mods\\SparesSupplyRepairFramework):
+  only the materials and textures of the F4 zone circles the plugin draws the spare parts and repair zones with.
+  It has no tables, so it conflicts with nothing; every vehicle built on the framework needs it;
+- the HEMTT Spares example mod (--out, mods\\HEMTT_Spares): the vehicles themselves - tables, shops, army,
+  encyclopedia, localization, icons. Without the framework mini-mod the circles of its vehicles are not drawn.
 
-Новые машины - копии HEMTT Supply (Fnd_HEMTT_ammunition), который не меняется (список - UNITS):
-Fnd_HEMTT_spares («HEMTT Spares», запчасти) и Fnd_HEMTT_repairer («HEMTT Repair», ремонт и броня).
-Файлы игры каждый раз берутся заново (gamefiles.py: последний архив/папка слоя, где файл есть),
-поэтому после обновления игры достаточно пересобрать.
+The new vehicles are copies of HEMTT Supply (Fnd_HEMTT_ammunition), which stays unchanged (the list is UNITS):
+Fnd_HEMTT_spares ("HEMTT Spares", spare parts) and Fnd_HEMTT_repairer ("HEMTT Repair", repair and armor).
+The game files are taken anew every time (gamefiles.py: the last archive/folder of the layer that has the file),
+so after a game update a rebuild is enough.
 
-Без плагина SparesSupply.dll ammunition_recharge рядом с support/repair не создаётся (нет кнопки F4):
-HEMTT Spares пополняет запчасти только по клику, HEMTT Repair не делает ничего.
+Without the SparesSupply.dll plugin, ammunition_recharge next to support/repair is not created (no F4 button):
+HEMTT Spares refills spare parts only on click, HEMTT Repair does nothing.
 """
 import argparse
 import json
@@ -36,13 +36,13 @@ TOW_DESC = '&#10;&#10;Can tow light and heavy trailers except those requiring a 
 # with capacity_ammo_recharger=0 they hand out no ammo. unit_set=light_vehicle - a test for now.
 UNITS = [
     dict(
-        sysname='Fnd_HEMTT_spares',   # в версии 0.1 - Fnd_HEMTT_repair (сохранения 0.1 с этой машиной не загрузятся)
+        sysname='Fnd_HEMTT_spares',   # Fnd_HEMTT_repair in version 0.1 (0.1 saves with this vehicle will not load)
         name='HEMTT Spares',
         icon='fnd_hemmit_spares', icon_kind='spares',
         desc=COMMON_DESC + 'This version carries spare parts for field repairs.&#10;&#10;'
              'Can be quickly deployed into a supply depot that resupplies nearby vehicles with spare parts.' + TOW_DESC,
         stats=['abilities=ammunition_recharge,support', 'capacity_ammo_recharger=0', 'spares=10000'],
-        # магазин кампании Resistance: 1 шт. в первом секторе + там же, где выдаётся HEMTT Supply
+        # Resistance campaign shop: 1 unit in the first sector + wherever HEMTT Supply is given out
         shop=[('sector_1_reward', ':1'), ('sector_11_reward', ''), ('sector_14_reward_1', ''),
               ('sector_16_reward_2', '')],
     ),
@@ -53,26 +53,26 @@ UNITS = [
         desc=COMMON_DESC + 'This version is a mobile repair workshop.&#10;&#10;'
              'Can be quickly deployed into a repair station that repairs damaged modules and restores the armor '
              'of nearby friendly vehicles, using its own stock of spare parts.' + TOW_DESC,
-        # чинит из своего запаса запчастей (плагин): 1 за 1 здоровья модуля, 1 за 1 мм брони
+        # repairs from its own stock of spare parts (plugin): 1 per 1 module health, 1 per 1 mm of armor
         stats=['abilities=ammunition_recharge,repair', 'capacity_ammo_recharger=0', 'spares=10000'],
-        shop=[('sector_1_reward', ':1')],   # пока тест: 1 шт. в первом секторе
+        shop=[('sector_1_reward', ':1')],   # a test for now: 1 unit in the first sector
     ),
 ]
-# Основная кампания: все магазины (кроме тестовых test_shop_* и демо resistance_dlc_shop_demo) -
-# по одной машине каждого вида из UNITS.
+# Main campaign: all shops (except the test ones test_shop_* and the demo resistance_dlc_shop_demo) -
+# one vehicle of each kind from UNITS.
 BASE_SHOPS = ['taos_shop_1', 'taos_shop_2', 'taos_shop_3', 'albuquerque_shop', 'res_sup_base_0', 'res_sup_base_1',
               'vega_1_r', 'vega_1_m', 'tortuga_1', 'tortuga_2', 'tortuga_3', 'vega_2_r', 'vega_2_m',
               'resistance_camp', 'integrators_main_1', 'integrators_main_2', 'integrators_main_2a',
               'integrators_main_3', 'integrators_main_4', 'res_forward_post_0', 'integrators_scavengers_1',
               'integrators_scavengers_2', 'resistance_far_recon']
-# DLC Canada (свои cars.xml, магазины, энциклопедия): все магазины - по одной машине каждого вида.
+# DLC Canada (its own cars.xml, shops, encyclopedia): all shops - one vehicle of each kind.
 CANADA_SHOPS = ['camp_1_shop', 'camp_2_shop', 'camp_3_shop', 'niagara_shop', 'resistance_camp']
 for u in UNITS:
     u['stats'] = u['stats'] + ['unit_set=light_vehicle',
-                               'tech_pic=vehicles_icons_small\\' + u['icon'],   # _preselected/_selected игра ищет сама
+                               'tech_pic=vehicles_icons_small\\' + u['icon'],   # the game finds _preselected/_selected
                                'garrison_pic=vehicles_icons_big\\' + u['icon']]
 
-# что брать из игры: слой -> файлы
+# what to take from the game: layer -> files
 SOURCES = {
     'base': ['scripts/species/cars.xml', 'scripts/default_army.toml', 'scripts/species/shop_presets.xml',
              'scripts/species/encyclopedia.xml'] +
@@ -89,14 +89,14 @@ SOURCES = {
 
 MOD_JSON = {
     'name': 'HEMTT Spares',
-    # аннотация мода (~300 символов); перед ней сборка дописывает «Version X.»
+    # mod summary (~300 characters); the build prepends "Version X." to it
     'description': (
         'This mod adds two new mechanics: zone resupply of spare parts (like ammunition) and zone repair with '
         'armor restoration, as well as two new vehicles to accommodate them - HEMTT Spares and HEMTT Repair, '
         'respectively. Requires the SparesSupply & Repair Framework mod (included): enable both.'),
     'icon': 'basis/mod_icon.dds',
 }
-# Мини-мод фреймворка: только круги зоны (CIRCLES).
+# Framework mini-mod: only the zone circles (CIRCLES).
 FRAMEWORK_JSON = {
     'name': 'SparesSupply & Repair Framework',
     'description': (
@@ -106,7 +106,7 @@ FRAMEWORK_JSON = {
     'icon': 'basis/mod_icon.dds',
 }
 
-# Материалы кругов зоны F4 (плагин рисует ими круг вместо ammoRecharge): имя файла -> текстура.
+# F4 zone circle materials (the plugin draws the circle with them instead of ammoRecharge): file name -> texture.
 CIRCLES = {'sparesRecharge': 'circle_spares', 'repairRecharge': 'circle_repair'}
 CIRCLE_MATERIAL = '''{
     "Colors": null,
@@ -128,25 +128,25 @@ CIRCLE_MATERIAL = '''{
 
 
 def run(script, *args, env=None):
-    """Запустить скрипт проекта (путь относительно mod/) текущим Python; ошибка - исключение."""
-    env = dict(env or os.environ, PYTHONIOENCODING='utf-8')  # консоль CMake/cmd - не UTF-8
+    """Run a project script (path relative to mod/) with the current Python; an error raises an exception."""
+    env = dict(env or os.environ, PYTHONIOENCODING='utf-8')  # the CMake/cmd console is not UTF-8
     subprocess.run([sys.executable, os.path.join(HERE, script), *args], check=True, env=env)
 
 
 def table(src, dst, row, *edits):
-    """Одна правка таблицы игры через tools/patch_table.py: src -> dst, строка row, правки edits."""
+    """One edit of a game table via tools/patch_table.py: src -> dst, row row, edits edits."""
     run('tools/patch_table.py', src, dst, row, *edits)
 
 
 def main():
-    """Собрать папку мода: достать актуальные файлы игры, сгенерировать графику и материалы кругов, поправить
-    таблицы всех слоёв (основная игра, Resistance, Canada) и локализацию, записать mod.json."""
+    """Build the mod folder: extract the current game files, generate the graphics and the circle materials, patch
+    the tables of all layers (base game, Resistance, Canada) and the localization, write mod.json."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--game', required=True)
-    ap.add_argument('--out', required=True, help='папка мода, например .../mods/HEMTT_Spares (пересоздаётся)')
+    ap.add_argument('--out', required=True, help='mod folder, e.g. .../mods/HEMTT_Spares (recreated)')
     ap.add_argument('--framework-out', required=True,
-                    help='папка мини-мода фреймворка, например .../mods/SparesSupplyRepairFramework (пересоздаётся)')
-    ap.add_argument('--cache', help='куда распаковать файлы игры (по умолчанию <out>/../_game_src)')
+                    help='framework mini-mod folder, e.g. .../mods/SparesSupplyRepairFramework (recreated)')
+    ap.add_argument('--cache', help='where to extract the game files (default <out>/../_game_src)')
     ap.add_argument('--version', default='dev')
     a = ap.parse_args()
 
@@ -171,7 +171,7 @@ def main():
     env = dict(os.environ, DFD_SRC=os.path.join(cache, 'base'), PYTHONIOENCODING='utf-8')
 
     def mod_json(folder, meta):
-        """mod.json мода: описание начинается с «Version X.»."""
+        """The mod's mod.json: the description starts with "Version X."."""
         meta = dict(meta, description=f'Version {a.version}.\n' + meta['description'])
         with open(os.path.join(folder, 'mod.json'), 'w', encoding='utf-8') as f:
             json.dump(meta, f, ensure_ascii=False, indent=4)
@@ -195,10 +195,10 @@ def main():
     for u in UNITS:
         run('art/make_unit_icons.py', textures, '--kind', u['icon_kind'], env=env)
 
-    # таблица заменяется целиком: каждая следующая правка - поверх результата предыдущей
+    # the table is replaced as a whole: each next edit goes on top of the result of the previous one
     def tables(src, dst, edits):
-        """Скопировать таблицу src в dst и применить к копии правки edits по очереди (каждая - аргументы
-        patch_table.py, первым идёт sysname строки)."""
+        """Copy table src to dst and apply edits to the copy one by one (each is patch_table.py arguments, the row
+        sysname first)."""
         shutil.copy(src, dst)
         for row, *args in edits:
             table(dst, dst + '.tmp', row, *args)
