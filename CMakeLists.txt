@@ -78,12 +78,28 @@ add_custom_target(mod
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Build mod data -> ${FRAMEWORK_STAGE}, ${MOD_STAGE}"
         USES_TERMINAL VERBATIM)
-# Both mods into the game (replacing what is there); shared by deploy and deploy_defiance.
-set(DEPLOY_MODS
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/${FRAMEWORK_MOD}"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${FRAMEWORK_STAGE}" "${GAME_DIR}/mods/${FRAMEWORK_MOD}"
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/HEMTT_Spares"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/HEMTT_Spares")
+# mod_tablemerge: HEMTT Spares once more as its table-merge build (build_mod.py --tables patch: table patches for
+# DefianceLoader's defiance.table-merge, the vehicles only) -> <build>/stage/mods_tablemerge/; the framework mini-mod
+# built beside it is the same as above.
+set(TM_STAGE "${CMAKE_BINARY_DIR}/stage/mods_tablemerge")
+add_custom_target(mod_tablemerge
+        COMMAND ${Python3_EXECUTABLE} mod/build_mod.py --game "${GAME_DIR}" --out "${TM_STAGE}/HEMTT_Spares"
+                --framework-out "${TM_STAGE}/${FRAMEWORK_MOD}" --cache "${GAME_SRC}" --version ${MOD_VERSION}
+                --tables patch
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Build the table-merge mod data -> ${TM_STAGE}"
+        USES_TERMINAL VERBATIM)
+# Both mods into the game (replacing what is there); shared by deploy and deploy_defiance (stage - where they are).
+function(dfd_deploy_mods var stage)
+    set(${var}
+            COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/${FRAMEWORK_MOD}"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${stage}/${FRAMEWORK_MOD}" "${GAME_DIR}/mods/${FRAMEWORK_MOD}"
+            COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/HEMTT_Spares"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${stage}/HEMTT_Spares" "${GAME_DIR}/mods/HEMTT_Spares"
+            PARENT_SCOPE)
+endfunction()
+dfd_deploy_mods(DEPLOY_MODS "${CMAKE_BINARY_DIR}/stage/mods")
+dfd_deploy_mods(DEPLOY_MODS_TABLEMERGE "${TM_STAGE}")
 
 # ---- deploy: install the DLLs and the mod into the game (the game must be closed)
 # deploy and deploy_defiance install one of the two mod builds and remove the other one from the game (only its
@@ -111,13 +127,25 @@ add_custom_target(deploy_defiance
         DEPENDS spares_repair mod
         COMMENT "Install the DefianceLoader plugin and mods into ${GAME_DIR}"
         VERBATIM)
+# ---- deploy_defiance_tablemerge: the same with the table-merge build of HEMTT Spares (for testing it; the game
+# needs [defiance.table-merge] enabled = true in DefianceLoader\config\settings.ini). deploy_defiance goes back.
+add_custom_target(deploy_defiance_tablemerge
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SparesSupply.dll"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/DefianceLoader/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:spares_repair>
+                "${CMAKE_CURRENT_BINARY_DIR}/spares_repair.plugin.json" "${GAME_DIR}/DefianceLoader/plugins/"
+        ${DEPLOY_MODS_TABLEMERGE}
+        DEPENDS spares_repair mod_tablemerge
+        COMMENT "Install the DefianceLoader plugin and the table-merge mods into ${GAME_DIR}"
+        VERBATIM)
 
 # ---- release: "build a release" -> dist/: two packages of the standalone build (our winhttp.dll + SparesSupply.dll):
 #   SparesSupplyRepairFramework_v<version>.zip - the framework only (DLLs + the mini-mod with the zone circles),
 #   HEMTT_Spares_v<version>.zip - the framework + the HEMTT Spares example mod (+ cover and preview for the mod page).
 # The DLLs are always built by a separate nested Release build, regardless of the CLion profile.
 # release_defiance - the same for the DefianceLoader plugin: SparesSupplyRepairFramework_DefianceLoader_v<version>.zip
-# and HEMTT_Spares_DefianceLoader_v<version>.zip (same nested build and data folders; shared cover and preview).
+# and HEMTT_Spares_DefianceLoader_v<version>.zip (same nested build and data folders; shared cover and preview), plus
+# HEMTT_Spares_DefianceLoader_TableMerge_v<version>.zip - HEMTT Spares as table-merge patches (vehicles only).
 if (NOT DFD_NESTED_RELEASE)
     set(REL_DIR "${CMAKE_BINARY_DIR}/release")
     # Shared steps of both releases: configure the nested Release build, build the mod data.
@@ -133,6 +161,12 @@ if (NOT DFD_NESTED_RELEASE)
             COMMAND ${Python3_EXECUTABLE} mod/build_mod.py --game "${GAME_DIR}" --out "${REL_MODS}/HEMTT_Spares"
                     --framework-out "${REL_MODS}/${FRAMEWORK_MOD}" --cache "${REL_DIR}/stage/_game_src"
                     --version ${MOD_VERSION})
+    # the table-merge build of HEMTT Spares, for the third DefianceLoader package
+    set(REL_TM "${REL_DIR}/stage/mods_tablemerge")
+    set(REL_MOD_DATA_TABLEMERGE
+            COMMAND ${Python3_EXECUTABLE} mod/build_mod.py --game "${GAME_DIR}" --out "${REL_TM}/HEMTT_Spares"
+                    --framework-out "${REL_TM}/${FRAMEWORK_MOD}" --cache "${REL_DIR}/stage/_game_src"
+                    --version ${MOD_VERSION} --tables patch)
     # package.py arguments of each build; adding EXAMPLE_ARGS packs HEMTT Spares too.
     set(PACKAGE_COMMON --framework-mod "${REL_MODS}/${FRAMEWORK_MOD}" --version ${MOD_VERSION}
             --out "${CMAKE_SOURCE_DIR}/dist")
@@ -155,6 +189,9 @@ if (NOT DFD_NESTED_RELEASE)
             ${REL_MOD_DATA}
             COMMAND ${Python3_EXECUTABLE} mod/package.py ${DEFIANCE_ARGS} ${PACKAGE_COMMON}
             COMMAND ${Python3_EXECUTABLE} mod/package.py ${DEFIANCE_ARGS} ${PACKAGE_COMMON} ${EXAMPLE_ARGS}
+            ${REL_MOD_DATA_TABLEMERGE}
+            COMMAND ${Python3_EXECUTABLE} mod/package.py ${DEFIANCE_ARGS} ${PACKAGE_COMMON} --tablemerge
+                    --mod "${REL_TM}/HEMTT_Spares" --game-src "${REL_DIR}/stage/_game_src/base"
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
             COMMENT "Release the framework and HEMTT Spares ${MOD_VERSION} for DefianceLoader -> dist/"
             USES_TERMINAL VERBATIM)

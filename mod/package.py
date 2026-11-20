@@ -1,21 +1,26 @@
-"""Packages a release: an archive with the game folder structure (+ a cover for publishing). Four packages - the
-framework alone or together with the HEMTT Spares example mod, as the standalone build or for DefianceLoader:
+"""Packages a release: an archive with the game folder structure (+ a cover for publishing). Five packages - the
+framework alone or together with the HEMTT Spares example mod, as the standalone build or for DefianceLoader, and
+HEMTT Spares for DefianceLoader once more as its table-merge build:
 
     python mod/package.py [--mod <built HEMTT_Spares folder>] --framework-mod <built mini-mod folder>
                           --winhttp <winhttp.dll> --plugin <SparesSupply.dll>
                           [--game-src <extracted game files, base layer>] --version 1.0 --out <dist folder>
     python mod/package.py --defiance [--mod <...>] --framework-mod <...> --plugin <spares_repair.dll>
                           --manifest <spares_repair.plugin.json> [--game-src <...>] --version 1.0 --out <dist folder>
+    python mod/package.py --defiance --tablemerge --mod <HEMTT_Spares built with build_mod.py --tables patch> ...
 
 - without --mod - the framework only: SparesSupplyRepairFramework_v<version>.zip
   (with --defiance - SparesSupplyRepairFramework_DefianceLoader_v<version>.zip): the plugin + the framework mini-mod
   (zone circles) in mods/SparesSupplyRepairFramework;
 - with --mod - the framework + HEMTT Spares (mods/HEMTT_Spares): HEMTT_Spares_v<version>.zip
   (HEMTT_Spares_DefianceLoader_v<version>.zip), plus the cover <out>/HEMTT_Spares_v<version>_cover.png (1920x1080)
-  and the _banner.png preview (1300x372) for the mod page - this needs --game-src.
+  and the _banner.png preview (1300x372) for the mod page - this needs --game-src;
+- with --defiance --tablemerge --mod - the same framework + HEMTT Spares, its tables as table-merge patches:
+  HEMTT_Spares_DefianceLoader_TableMerge_v<version>.zip (the cover and preview are the ones above, not made again).
 
-The README for players is docs/Dist-readme.md: blocks {IF STANDALONE} / {IF DEFIANCE} and {IF FRAMEWORK} /
-{IF EXAMPLE} ... {END} (may be nested) go only into their own package.
+The README for players is docs/Dist-readme.md: blocks {IF STANDALONE} / {IF DEFIANCE}, {IF FRAMEWORK} /
+{IF EXAMPLE} and {IF WHOLE} / {IF TABLEMERGE} (whole tables or table-merge patches) ... {END} (may be nested) go only
+into their own package.
 
 The archive is reproducible: entries in a fixed order, with a fixed date and attributes, so the same files give a
 byte-identical zip (with the same zlib - the one bundled with the Python used). The sha256 of the archive and of the
@@ -85,6 +90,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--defiance', action='store_true', help='pack the DefianceLoader plugin, not the standalone build')
     ap.add_argument('--mod', help='HEMTT Spares; without it - a framework-only package')
+    ap.add_argument('--tablemerge', action='store_true',
+                    help='with --defiance and --mod: --mod is the table-merge build of HEMTT Spares (build_mod.py '
+                         '--tables patch)')
     ap.add_argument('--framework-mod', required=True, help='framework mini-mod (zone circles)')
     ap.add_argument('--winhttp', help='standalone build only')
     ap.add_argument('--plugin', required=True)
@@ -97,6 +105,8 @@ def main():
         ap.error('--defiance needs --manifest')
     if not a.defiance and not a.winhttp:
         ap.error('--winhttp (or --defiance) is required')
+    if a.tablemerge and not (a.defiance and a.mod):
+        ap.error('--tablemerge needs --defiance and --mod: only DefianceLoader merges table patches')
     if a.mod and not a.game_src:
         ap.error('--mod needs --game-src')
 
@@ -128,9 +138,11 @@ def main():
     if missing:
         sys.exit('missing files: ' + ', '.join(missing))
 
-    tags = {'DEFIANCE' if a.defiance else 'STANDALONE', 'EXAMPLE' if a.mod else 'FRAMEWORK'}
+    tags = {'DEFIANCE' if a.defiance else 'STANDALONE', 'EXAMPLE' if a.mod else 'FRAMEWORK',
+            'TABLEMERGE' if a.tablemerge else 'WHOLE'}
     os.makedirs(a.out, exist_ok=True)
-    zip_path = os.path.join(a.out, f'{base}{"_DefianceLoader" if a.defiance else ""}_v{a.version}.zip')
+    variant = ('_DefianceLoader' if a.defiance else '') + ('_TableMerge' if a.tablemerge else '')
+    zip_path = os.path.join(a.out, f'{base}{variant}_v{a.version}.zip')
     sums = {}
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for p, arc in files:
@@ -146,7 +158,7 @@ def main():
     sums[os.path.basename(zip_path)] = sha256(open(zip_path, 'rb').read())
     update_sums(os.path.join(a.out, SUMS), sums)
     print(f'-> {zip_path} ({os.path.getsize(zip_path)} bytes), sha256 {sums[os.path.basename(zip_path)]}')
-    if not a.mod:
+    if not a.mod or a.tablemerge:  # the table-merge package shares the whole-table packages' cover and preview
         return
 
     cover = os.path.join(a.out, f'HEMTT_Spares_v{a.version}_cover.png')
