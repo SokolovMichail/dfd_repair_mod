@@ -15,12 +15,14 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
 
 #include "../plugins/spares_supply/logic_dll/common.h"
+#include "../plugins/spares_supply/logic_dll/defiance.h"
 #include "../plugins/spares_supply/logic_dll/repair.h"
 #include "../plugins/spares_supply/logic_dll/spares.h"
 #include "../third_party/defiance/defiance.h"
@@ -387,4 +389,108 @@ TEST_CASE_FIXTURE(Plugin, "log not set: events are logged, into the loader's log
     alignas(8) uint8_t facet[0x20] = {};
     trace("F4 event", facet);
     CHECK(loader.logged("F4 event facet="));
+}
+
+// ================================================================ table patches without the table merge
+
+namespace {
+
+namespace fs = std::filesystem;
+
+// A game's mods folder and a mods.json, in a fresh temporary folder (removed again at the end).
+struct Mods {
+    fs::path root = fs::temp_directory_path() / ("dfd_table_patches_" + std::to_string(GetCurrentProcessId()));
+    fs::path dir = root / "mods";
+    fs::path json = root / "mods.json";
+    std::vector<std::string> lines;  // the plugin's log lines
+    static Mods* current;
+
+    Mods() {
+        fs::remove_all(root);
+        fs::create_directories(dir);
+        current = this;
+        g_log.sendTo([](const char* line) { current->lines.emplace_back(line); });
+    }
+    ~Mods() {
+        g_log.sendTo(nullptr);
+        current = nullptr;
+        std::error_code ec;
+        fs::remove_all(root, ec);
+    }
+    void list(const std::string& text) const { std::ofstream(json, std::ios::binary) << text; }
+    void file(const std::string& rel) const {
+        fs::create_directories((dir / rel).parent_path());
+        std::ofstream(dir / rel) << "x";
+    }
+    bool logged(const std::string& part) const {
+        for (auto& l : lines)
+            if (l.find(part) != std::string::npos) return true;
+        return false;
+    }
+};
+Mods* Mods::current = nullptr;
+
+}  // namespace
+
+TEST_CASE("enabledMods: the enabled folders of mods.json, in file order") {
+    CHECK(enabledMods(R"([
+        {"enabled": true, "folder": "hemtt_spares"},
+        {"folder": "off_mod", "enabled": false},
+        {"enabled":true,"folder":"Second Mod"},
+        {"enabled": true},
+        {"folder": "no_flag"}
+    ])") == std::vector<std::string>{"hemtt_spares", "Second Mod"});
+    CHECK(enabledMods("").empty());
+    CHECK(enabledMods("not json at all").empty());
+}
+
+TEST_CASE("tablePatches: <table>.<folder>.patch.xml / .txt anywhere in the mod, folder name in any case") {
+    Mods m;
+    m.file("HEMTT_Spares/basis/scripts/species/cars.hemtt_spares.patch.xml");
+    m.file("HEMTT_Spares/dlc/Canada/basis/scripts/species/CARS.HEMTT_SPARES.PATCH.TXT");
+    m.file("HEMTT_Spares/basis/scripts/species/cars.xml");                  // a whole table - not a patch
+    m.file("HEMTT_Spares/basis/scripts/species/cars.other_mod.patch.xml");  // another mod's name - not ours
+    m.file("HEMTT_Spares/basis/.hemtt_spares.patch.xml");                   // no table name
+    CHECK(tablePatches((m.dir / "HEMTT_Spares").wstring(), "hemtt_spares") ==
+          std::vector<std::string>{"basis/scripts/species/cars.hemtt_spares.patch.xml",
+                                   "dlc/Canada/basis/scripts/species/CARS.HEMTT_SPARES.PATCH.TXT"});
+    CHECK(tablePatches((m.dir / "missing").wstring(), "missing").empty());
+}
+
+TEST_CASE("Table merge off: each enabled mod with table patches is named, with what to do") {
+    Mods m;
+    m.list(R"([{"enabled": true, "folder": "hemtt_spares"}, {"enabled": true, "folder": "whole_tables"},
+               {"enabled": false, "folder": "disabled_patches"}])");
+    m.file("HEMTT_Spares/basis/scripts/species/cars.hemtt_spares.patch.xml");
+    m.file("HEMTT_Spares/basis/scripts/species/encyclopedia.hemtt_spares.patch.xml");
+    m.file("whole_tables/basis/scripts/species/cars.xml");
+    m.file("disabled_patches/basis/scripts/species/cars.disabled_patches.patch.xml");
+
+    CHECK(warnIgnoredTablePatches("false", m.json.wstring(), m.dir.wstring()) == 1);
+    REQUIRE(m.lines.size() == 1);
+    CHECK(m.logged("mod hemtt_spares ships 2 table patches (basis/scripts/species/cars.hemtt_spares.patch.xml ...) "
+                   "that are IGNORED: defiance.table-merge is off"));
+    CHECK(m.logged("set enabled = true under [defiance.table-merge] in DefianceLoader\\config\\settings.ini"));
+
+    m.lines.clear();
+    CHECK(warnIgnoredTablePatches(nullptr, m.json.wstring(), m.dir.wstring()) == 1);  // the merge plugin is not installed at all
+    CHECK(m.logged("defiance.table-merge is not installed"));
+}
+
+TEST_CASE("Table merge on, or nothing to look at: no warning") {
+    Mods m;
+    m.list(R"([{"enabled": true, "folder": "hemtt_spares"}])");
+    m.file("HEMTT_Spares/basis/scripts/species/cars.hemtt_spares.patch.xml");
+    CHECK(warnIgnoredTablePatches("true", m.json.wstring(), m.dir.wstring()) == 0);
+    CHECK(warnIgnoredTablePatches("false", (m.root / "no mods.json").wstring(), m.dir.wstring()) == 0);
+    CHECK(m.lines.empty());
+}
+
+TEST_CASE_FIXTURE(Plugin, "init asks the loader whether the table merge is on") {
+    // init runs the check with the loader's answer; here no real mods folder has patches, so it stays quiet and
+    // init goes on as usual.
+    loader.config["defiance.table-merge/enabled"] = "false";
+    REQUIRE(init() == 0);
+    CHECK_FALSE(loader.logged("table patches"));
+    CHECK(loader.logged("SparesSupply staged"));
 }
