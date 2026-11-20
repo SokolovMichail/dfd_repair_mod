@@ -1,7 +1,7 @@
 """Builds two mods from the current files of the installed game:
 
     python mod/build_mod.py --game <game folder> --out <HEMTT_Spares folder> --framework-out <framework folder>
-                            [--cache <cache>] [--version 1.0]
+                            [--cache <cache>] [--version 1.0] [--tables whole|patch]
 
 - the SparesSupply & Repair Framework mini-mod (--framework-out, mods\\SparesSupplyRepairFramework):
   only the materials and textures of the F4 zone circles the plugin draws the spare parts and repair zones with.
@@ -16,6 +16,15 @@ so after a game update a rebuild is enough.
 
 Without the SparesSupply.dll plugin, ammunition_recharge next to support/repair is not created (no F4 button):
 HEMTT Spares refills spare parts only on click, HEMTT Repair does nothing.
+
+--tables chooses how HEMTT Spares carries its table edits:
+- whole (default): each edited game table whole, as the game loads mod files - works everywhere, but it replaces
+  the table, so another mod's copy of the same table and ours cannot both work;
+- patch: for DefianceLoader's defiance.table-merge plugin - each table as <table>.hemtt_spares.patch.xml with only
+  our rows (tools/make_table_patch.py), merged into the game's table as it loads. Data only: the vehicles, their
+  encyclopedia articles and localization. Shop lists (shop_presets.xml, campaign rewards included) are single
+  cells another mod may change too, and the skirmish army (default_army.toml) is not a table at all, so this build
+  leaves both out: the vehicles are in the game, and getting them into shops or armies is up to other mods.
 """
 import argparse
 import json
@@ -87,6 +96,8 @@ SOURCES = {
     'canada_loc_en': ['locale/encyclopedia_dlc_loc.xml'],
 }
 
+# The example mod's folder in mods\. The table merge finds a mod's patches by it: <table>.<folder, lower case>.patch.xml.
+MOD_FOLDER = 'HEMTT_Spares'
 MOD_JSON = {
     'name': 'HEMTT Spares',
     # mod summary (~300 characters); the build prepends "Version X." to it
@@ -96,6 +107,9 @@ MOD_JSON = {
         'respectively. Requires the SparesSupply & Repair Framework mod (included): enable both.'),
     'icon': 'basis/mod_icon.dds',
 }
+# --tables patch: appended to the description, so the mod list says what this build needs and lacks.
+TABLEMERGE_NOTE = (' Table-merge build: needs DefianceLoader with defiance.table-merge enabled; the vehicles are not '
+                   'added to shops or the skirmish army.')
 # Framework mini-mod: only the zone circles (CIRCLES).
 FRAMEWORK_JSON = {
     'name': 'SparesSupply & Repair Framework',
@@ -148,7 +162,10 @@ def main():
                     help='framework mini-mod folder, e.g. .../mods/SparesSupplyRepairFramework (recreated)')
     ap.add_argument('--cache', help='where to extract the game files (default <out>/../_game_src)')
     ap.add_argument('--version', default='dev')
+    ap.add_argument('--tables', choices=('whole', 'patch'), default='whole',
+                    help='whole edited tables (default), or table-merge patches with the vehicles only')
     a = ap.parse_args()
+    patches = a.tables == 'patch'
 
     out = os.path.abspath(a.out)
     cache = os.path.abspath(a.cache or os.path.join(out, '..', '_game_src'))
@@ -188,21 +205,30 @@ def main():
         with open(os.path.join(materials, f'{name}.material'), 'w', encoding='utf-8', newline='\n') as f:
             f.write(CIRCLE_MATERIAL.replace('{texture}', texture))
 
-    print('== HEMTT Spares: mod.json, icon, unit icons')
-    mod_json(out, MOD_JSON)
+    print('== HEMTT Spares: mod.json, icon, unit icons' + (' (table-merge build)' if patches else ''))
+    mod_json(out, dict(MOD_JSON, description=MOD_JSON['description'] + TABLEMERGE_NOTE) if patches else MOD_JSON)
     run('art/make_mod_icon.py', os.path.join(out, 'basis', 'mod_icon.dds'), env=env)
     textures = os.path.join(out, 'basis', 'textures')
     for u in UNITS:
         run('art/make_unit_icons.py', textures, '--kind', u['icon_kind'], env=env)
 
     # the table is replaced as a whole: each next edit goes on top of the result of the previous one
-    def tables(src, dst, edits):
+    def tables(src, dst, edits, shop=False):
         """Copy table src to dst and apply edits to the copy one by one (each is patch_table.py arguments, the row
-        sysname first)."""
-        shutil.copy(src, dst)
+        sysname first). --tables patch: the edited copy is only a step - what goes into the mod is its patch,
+        <table>.<mod folder>.patch.xml beside where the table would be; shop tables are left out."""
+        if patches and shop:
+            print(f'  {os.path.basename(dst)}: left out (table-merge build adds no shops)')
+            return
+        full = dst + '.full' if patches else dst
+        shutil.copy(src, full)
         for row, *args in edits:
-            table(dst, dst + '.tmp', row, *args)
-            os.replace(dst + '.tmp', dst)
+            table(full, full + '.tmp', row, *args)
+            os.replace(full + '.tmp', full)
+        if patches:
+            name = os.path.splitext(dst)[0] + f'.{MOD_FOLDER.lower()}.patch.xml'
+            run('tools/make_table_patch.py', src, full, name)
+            os.remove(full)
 
     clone = lambda extra: [(TEMPLATE, '--clone', u['sysname'], *extra(u)) for u in UNITS]
 
@@ -213,19 +239,22 @@ def main():
     tables(S('resistance', 'scripts/species/encyclopedia_dlc.xml'), os.path.join(res, 'encyclopedia_dlc.xml'),
            clone(lambda u: [f'image=vehicles_icons_big/{u["icon"]}']))
     tables(S('resistance', 'scripts/species/shop_presets.xml'), os.path.join(res, 'shop_presets.xml'),
-           [(row, f'cars+=,{u["sysname"]}{count}') for u in UNITS for row, count in u['shop']])
+           [(row, f'cars+=,{u["sysname"]}{count}') for u in UNITS for row, count in u['shop']], shop=True)
 
     print('== base game (main campaign, skirmish): units, shops, encyclopedia, Founders army')
     base = os.path.join(out, 'basis', 'scripts', 'species')
     os.makedirs(base)
     tables(S('base', 'scripts/species/cars.xml'), os.path.join(base, 'cars.xml'), clone(lambda u: u['stats']))
     tables(S('base', 'scripts/species/shop_presets.xml'), os.path.join(base, 'shop_presets.xml'),
-           [(row, f'cars,+={u["sysname"]}') for row in BASE_SHOPS for u in UNITS])
+           [(row, f'cars,+={u["sysname"]}') for row in BASE_SHOPS for u in UNITS], shop=True)
     tables(S('base', 'scripts/species/encyclopedia.xml'), os.path.join(base, 'encyclopedia.xml'),
            clone(lambda u: [f'image=vehicles_icons_big/{u["icon"]}']))
-    run('tools/patch_army_toml.py', S('base', 'scripts/default_army.toml'),
-        os.path.join(out, 'basis', 'scripts', 'default_army.toml'),
-        *[f'add-car:founders:{TEMPLATE}:{u["sysname"]}' for u in UNITS])
+    if patches:  # not a table: the merge cannot patch it, and a whole copy would clash with other mods
+        print('  default_army.toml: left out (table-merge build adds no skirmish army)')
+    else:
+        run('tools/patch_army_toml.py', S('base', 'scripts/default_army.toml'),
+            os.path.join(out, 'basis', 'scripts', 'default_army.toml'),
+            *[f'add-car:founders:{TEMPLATE}:{u["sysname"]}' for u in UNITS])
 
     print('== Canada: units, encyclopedia, shops')
     can = os.path.join(out, 'dlc', 'Canada', 'basis', 'scripts', 'species')
@@ -234,7 +263,7 @@ def main():
     tables(S('canada', 'scripts/species/encyclopedia_dlc.xml'), os.path.join(can, 'encyclopedia_dlc.xml'),
            clone(lambda u: [f'image=vehicles_icons_big/{u["icon"]}']))
     tables(S('canada', 'scripts/species/shop_presets.xml'), os.path.join(can, 'shop_presets.xml'),
-           [(row, f'cars,+={u["sysname"]}') for row in CANADA_SHOPS for u in UNITS])
+           [(row, f'cars,+={u["sysname"]}') for row in CANADA_SHOPS for u in UNITS], shop=True)
 
     print('== localization (en)')
     loc = os.path.join(out, 'localization', 'en', 'basis_en', 'locale')
