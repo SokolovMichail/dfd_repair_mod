@@ -44,8 +44,11 @@ Three parts; the first two are the framework, the third is the example:
   engine's repair is unfinished), draws the circles with the mini-mod's materials. It doesn't touch ammunition: a
   vehicle with a real stock hands it out together with spare parts and repair.
 
-The release is four packages on one mod page: the framework alone or together with HEMTT Spares, each in the
-standalone version (our `winhttp.dll`) or for DefianceLoader (see "Build targets").
+The release is five packages on one mod page: the framework alone or together with HEMTT Spares, each in the
+standalone version (our `winhttp.dll`) or for DefianceLoader, and HEMTT Spares for DefianceLoader once more as the
+**table-merge build**: its tables as patches for DefianceLoader's `defiance.table-merge` instead of whole game tables,
+so it does not clash with other mods that change the same tables. That build adds the vehicles only — no shops,
+rewards or skirmish army, which are not patchable cleanly (see "DefianceLoader" and `docs/MODDING.md`).
 
 Checked on GOG 1.09.1221. Addresses in `logic.dll` are not hard-coded — the plugin finds them by byte patterns and
 RTTI, so it should work on Steam too. If anything is not found or doesn't match, it changes nothing and writes to the
@@ -58,6 +61,7 @@ CMakeLists.txt         build targets (see below), the mod version MOD_VERSION
 .env.example           template of local settings -> copy to .env
 .run/                  ready CLion run configurations: Build release / Deploy to game / Build mod data,
                        Build release (DefianceLoader) / Deploy to game (DefianceLoader),
+                       Deploy to game (DefianceLoader, table merge),
                        Build SparesSupply (standalone) / Build spares_repair (DefianceLoader)
 common/patch.h         shared by the plugins: log, pattern and RTTI search, patch set, waiting for a DLL to load
 loader/                winhttp.dll: proxy of the system winhttp.dll + loader of bin\plugins\*.dll
@@ -77,7 +81,8 @@ mod/
   art/                 graphics: circles (make_circle_spares, make_circle_repair), vehicle icons
                        (make_unit_icons --kind spares|repair), mod icons (make_mod_icon [--framework])
   tools/               gamefiles.py (finds the current version of a file in the game's layers), patch_table.py (edits
-                       Excel-XML tables), patch_army_toml.py, pak_extract.py (manual unpacking), table_grep.py
+                       Excel-XML tables), make_table_patch.py (a table-merge patch: stock vs edited table, self-checked),
+                       patch_army_toml.py, pak_extract.py (manual unpacking), table_grep.py
 re/                    tools for reverse engineering the game's DLLs (see re/README.md)
 tests/                 plugin tests (doctest + CTest), the game is not needed for them - see "Tests"
 docs/                  engine_notes.md - what is known about the engine; Dist-readme.md - the players' README in the archive;
@@ -103,10 +108,12 @@ dist/                  the result of "build the release" (not in git)
 | `winhttp`, `SparesSupply` | The DLLs (CLion profile, usually Debug). |
 | `spares_repair` | The same plugin for DefianceLoader: `spares_repair.dll` + `spares_repair.plugin.json` in the build folder. |
 | `mod` | Builds both mods into `<build>/stage/mods/`: the framework mini-mod `SparesSupplyRepairFramework` and the example `HEMTT_Spares`. The game files are taken anew every time — after a game update a rebuild is enough. |
+| `mod_tablemerge` | The table-merge build of HEMTT Spares into `<build>/stage/mods_tablemerge/` (`build_mod.py --tables patch`): `<table>.hemtt_spares.patch.xml` files for the vehicles, encyclopedia and localization in every layer; no `shop_presets.xml`, no `default_army.toml`. |
 | `deploy` | Installs into the game: `bin\winhttp.dll`, `bin\plugins\SparesSupply.dll`, `mods\SparesSupplyRepairFramework`, `mods\HEMTT_Spares`. Removes the DefianceLoader version's plugin (`DefianceLoader\plugins\spares_repair.*`) if it was there. The game must be closed; both mods have to be enabled once in the MODS menu. |
 | `deploy_defiance` | The same for DefianceLoader: `DefianceLoader\plugins\spares_repair.dll` + manifest, both mods; removes `bin\plugins\SparesSupply.dll` (`bin\winhttp.dll`, DefianceLoader itself and other plugins stay). So `deploy` / `deploy_defiance` switch the game between the two versions of the mod — handy for checking (see "DefianceLoader"). |
+| `deploy_defiance_tablemerge` | `deploy_defiance` with the table-merge build of HEMTT Spares (from `mod_tablemerge`), for testing it. The game also needs `enabled = true` under `[defiance.table-merge]` in `DefianceLoader\config\settings.ini`. `deploy_defiance` goes back to whole tables. |
 | `release` | **Build the release**: a separate Release build of the DLLs (optimized, no debug info) + both mods + two standalone packages: `dist/SparesSupplyRepairFramework_v<version>.zip` (the framework only: DLLs and mini-mod) and `dist/HEMTT_Spares_v<version>.zip` (framework + HEMTT Spares), plus `dist/HEMTT_Spares_v<version>_cover.png` (1920×1080) and `_banner.png` (1300×372). |
-| `release_defiance` | The same for DefianceLoader: `dist/SparesSupplyRepairFramework_DefianceLoader_v<version>.zip` and `dist/HEMTT_Spares_DefianceLoader_v<version>.zip` (`DefianceLoader/plugins/spares_repair.dll` + manifest instead of `bin/...`); cover and preview are shared with `release`. Packaging — `mod/package.py [--defiance] [--mod ...]`; the players' README is one `docs/Dist-readme.md`, the blocks `{IF STANDALONE}` / `{IF DEFIANCE}` and `{IF FRAMEWORK}` / `{IF EXAMPLE}` (may be nested) go only into their own package; `docs/MODDING.md` goes into all of them. |
+| `release_defiance` | The same for DefianceLoader: `dist/SparesSupplyRepairFramework_DefianceLoader_v<version>.zip` and `dist/HEMTT_Spares_DefianceLoader_v<version>.zip` (`DefianceLoader/plugins/spares_repair.dll` + manifest instead of `bin/...`), plus `dist/HEMTT_Spares_DefianceLoader_TableMerge_v<version>.zip` (the table-merge build); cover and preview are shared with `release`. Packaging — `mod/package.py [--defiance] [--tablemerge] [--mod ...]`; the players' README is one `docs/Dist-readme.md`, the blocks `{IF STANDALONE}` / `{IF DEFIANCE}`, `{IF FRAMEWORK}` / `{IF EXAMPLE}` and `{IF WHOLE}` / `{IF TABLEMERGE}` (may be nested) go only into their own package; `docs/MODDING.md` goes into all of them. |
 
 In CLion: pick the **Build release** configuration (or **Deploy to game**; for DefianceLoader — the same ones marked
 **(DefianceLoader)**) and press Run — or Build → Build Target.
@@ -174,6 +181,16 @@ off — `enabled = false` in the `[sokolov.spares-repair]` section of `DefianceL
 
 If the loader plugin `defiance.supply-radius` is enabled, it sets the spare parts zone radius (we skip our radius
 patch).
+
+**Table-merge build.** `HEMTT_Spares_DefianceLoader_TableMerge` ships its tables as
+`<table>.hemtt_spares.patch.xml`, which the loader's `defiance.table-merge` merges row by row into the game's tables
+(it is off by default: `enabled = true` under `[defiance.table-merge]`). The patches come from the same edits as the
+whole tables: `mod/tools/make_table_patch.py` compares the stock table with our edited one and writes only our rows,
+then checks that stock + patch gives exactly our table. Shops (`shop_presets.xml`: one list cell per shop, which the
+merge cannot append to) and the skirmish army (`default_army.toml`, not a table) are left out, so in that build the
+vehicles exist but are in no shop. When the merge is off or not installed, the plugin names every enabled mod whose
+table patches are ignored: `mod hemtt_spares ships N table patches (...) that are IGNORED: defiance.table-merge is
+off ...`.
 
 **Where the plugin writes** (all in `logic.dll`, `patch_bytes` byte patches; RVAs are GOG 2026-09-25, on other
 builds the addresses differ, the plugin finds them at startup):
