@@ -61,6 +61,7 @@ CMakeLists.txt         build targets (see below), the mod version MOD_VERSION
 .env.example           template of local settings -> copy to .env
 .run/                  ready CLion run configurations: Build release / Deploy to game / Build mod data,
                        Build release (DefianceLoader) / Deploy to game (DefianceLoader),
+                       Deploy to game (DefianceLoader, table merge),
                        Build SparesSupply (standalone) / Build spares_repair (DefianceLoader)
 common/patch.h         shared by the plugins: log, pattern and RTTI search, patch set, waiting for a DLL to load
 loader/                winhttp.dll: proxy of the system winhttp.dll + loader of bin\plugins\*.dll
