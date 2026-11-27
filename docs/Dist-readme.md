@@ -3,7 +3,12 @@ SparesSupply & Repair Framework {VERSION} - for Terminator: Dark Fate - Defiance
 =============================================================
 {END}
 {IF EXAMPLE}
+{IF WHOLE}
 HEMTT Spares {VERSION} - mod for Terminator: Dark Fate - Defiance
+{END}
+{IF TABLEMERGE}
+HEMTT Spares {VERSION}, table-merge build - mod for Terminator: Dark Fate - Defiance
+{END}
 =============================================================
 {END}
 
@@ -20,7 +25,8 @@ for any vehicle a mod gives them to:
   The zone is marked with wrench icons.
 * Repair zone - a deployed vehicle with the "repair" ability repairs your and allied vehicles inside
   its zone: all damaged modules and the worn armor, paying with its own spare parts
-  (1 per module health point, 1 per mm of armor). The zone is marked with wrench-and-hammer icons.
+  (1 per module health point, 1 per mm of armor). A burning vehicle is put out first, for free:
+  the flames go off and its crew may board again. The zone is marked with wrench-and-hammer icons.
 
 This package adds NO vehicles by itself. It is for mods built on it, such as HEMTT Spares
 (available as a separate download on the same page, with the framework included).
@@ -28,28 +34,46 @@ This package adds NO vehicles by itself. It is for mods built on it, such as HEM
 {IF EXAMPLE}
 This mod adds two new supply vehicles based on the HEMTT. Both deploy with F4 (Supply Mode).
 The zone mechanics come from the SparesSupply & Repair Framework, included in this package.
+{IF TABLEMERGE}
+
+This is the TABLE-MERGE BUILD, for DefianceLoader's table merge (defiance.table-merge).
+It does not replace whole game tables; it ships only its own rows as patches, and the table
+merge adds them to the game's tables as they load. So other mods that change the same tables
+keep working.
+It adds the vehicles ONLY: their data, encyclopedia articles and names. They are NOT put into
+any shop, campaign reward or the skirmish army - that is left to other mods (or to you).
+To simply play with them, take HEMTT_Spares_DefianceLoader_v{VERSION}.zip instead.
+{END}
 
 HEMTT Spares - resupplies SPARE PARTS to your vehicles, the way HEMTT Supply does with ammunition.
 * When deployed, every vehicle inside the zone gets its spare parts refilled.
   The zone is marked with wrench icons.
 * It is possible to order it to resupply a single vehicle, as with any supply truck.
 * It carries 10000 spare parts. It does not hand out ammunition or fuel.
+{IF WHOLE}
 * Resistance campaign: one in the first sector shop, more in the same sector rewards
   as HEMTT Supply.
 * Main campaign: one in every shop.
 * Evolution campaign: one in every shop.
+{END}
 
 HEMTT Repair - a mobile repair workshop.
 * When deployed, it repairs your and allied vehicles inside the zone: all damaged modules
   and the worn armor. The zone is marked with wrench-and-hammer icons.
 * It pays with its own spare parts (carries 10000): 1 per module health point, 1 per mm
   of armor. The repaired vehicle pays nothing. When its stock runs out, it stops repairing.
+* A burning vehicle is put out first: the flames go off at once and the crew may get back in.
+  Putting out is free and works with an empty stock too; repair follows.
+* Abandoned vehicles (the crew has left them, e.g. bailed out of a fire) are put out and
+  repaired too, whoever they belonged to.
 * It does not repair itself or destroyed vehicles.
+{IF WHOLE}
 * Resistance campaign: one in the first sector shop.
 * Main campaign: one in every shop.
 * Evolution campaign: one in every shop.
 
 Skirmish: both are available to Founders.
+{END}
 {END}
 
 Making your own spare parts or repair vehicles: see SparesSupplyRepairFramework_MODDING.txt.
@@ -63,6 +87,10 @@ Making your own spare parts or repair vehicles: see SparesSupplyRepairFramework_
 {IF DEFIANCE}
 * DefianceLoader 1.9.0 or newer, installed in the game folder:
   https://github.com/DefianceLoader/DefianceLoader
+{END}
+{IF TABLEMERGE}
+* DefianceLoader's table merge (defiance.table-merge, comes with the loader) turned on -
+  see step 2 below. It is off by default; without it this mod adds nothing.
 {END}
 
 ## Installation instructions
@@ -93,10 +121,21 @@ Making your own spare parts or repair vehicles: see SparesSupplyRepairFramework_
    together with the mods that use it.
 {END}
 {IF EXAMPLE}
+{IF WHOLE}
 2. Start the game, open MODS and enable both "SparesSupply & Repair Framework" (the zone circles)
    and "HEMTT Spares" (the vehicles).
 3. Start a new mission (or a new campaign to get the shop rewards).
    Loading a save made after a mission works too - the next shop will have the vehicles.
+{END}
+{IF TABLEMERGE}
+2. Turn on the table merge: open DefianceLoader\config\settings.ini and set, in the section
+   [defiance.table-merge]:
+       enabled = true
+3. Start the game, open MODS and enable both "SparesSupply & Repair Framework" (the zone circles)
+   and "HEMTT Spares" (the vehicles), then restart the game.
+   The vehicles are now in the game's tables, but in no shop: use a mod that adds them to shops
+   or armies (their names are Fnd_HEMTT_spares and Fnd_HEMTT_repairer).
+{END}
 {END}
 
 ## CHECK
@@ -108,6 +147,11 @@ The last line should be "SparesSupply active".
 After the game has started, open DefianceLoader\logs\defiance-loader.log and look for the
 lines of sokolov.spares-repair: "SparesSupply staged", and the plugin listed as active.
 {END}
+{IF TABLEMERGE}
+The same log should say "table merge installed" and list hemtt_spares among the mods. If
+sokolov.spares-repair writes "mod hemtt_spares ships ... table patches ... that are IGNORED",
+the table merge is off: see step 2.
+{END}
 {IF FRAMEWORK}
 If it says "not supported", your game build differs: vehicles built on the framework only
 resupply spare parts on direct order (no F4 zone) and do not repair.
@@ -117,6 +161,9 @@ If it says "not supported", your game build differs: HEMTT Spares only resupplie
 spare parts on direct order (no F4 zone) and HEMTT Repair does not repair.
 {END}
 Please report it together with the log.
+A line "fault in ..." means the plugin hit a problem and skipped that step instead of crashing
+the game. After 3 of them it stops its own work until you restart the game; the vehicles then
+behave as without the mod. Please report that too, with the log.
 {IF DEFIANCE}
 Settings: section [sokolov.spares-repair] in DefianceLoader\config\settings.ini
 ("enabled = false" turns the plugin off, "log = false" keeps its events out of the log).
@@ -207,7 +254,8 @@ F4 (режим снабжения) у любой машины, которой и
   технике в своей зоне, так же как HEMTT Supply - боеприпасы. Зона отмечена гаечными ключами.
 * Зона ремонта - развёрнутая машина со способностью "repair" чинит вашу и союзную технику в своей
   зоне: все повреждённые модули и поврежденную броню, платя своими запчастями (1 за единицу
-  здоровья модуля, 1 за 1 мм брони). Зона отмечена ключами и молотками.
+  здоровья модуля, 1 за 1 мм брони). Горящую машину сначала тушит, бесплатно: пламя гаснет,
+  экипаж снова может сесть. Зона отмечена ключами и молотками.
 
 Сам этот комплект машин НЕ добавляет. Он нужен модам, построенным на нём, например HEMTT Spares
 (отдельный файл на той же странице, фреймворк в нём уже есть).
@@ -215,27 +263,45 @@ F4 (режим снабжения) у любой машины, которой и
 {IF EXAMPLE}
 Мод добавляет две новые машины снабжения на базе HEMTT. Обе разворачиваются кнопкой F4 (режим снабжения).
 Механику зон даёт SparesSupply & Repair Framework - он входит в этот комплект.
+{IF TABLEMERGE}
+
+Это СБОРКА ДЛЯ СЛИЯНИЯ ТАБЛИЦ (table merge) DefianceLoader (defiance.table-merge).
+Она не заменяет таблицы игры целиком, а везёт только свои строки в виде патчей, и слияние
+таблиц добавляет их в таблицы игры при загрузке. Поэтому другие моды, которые меняют те же
+таблицы, продолжают работать.
+Она добавляет ТОЛЬКО сами машины: их данные, статьи энциклопедии и названия. В магазины,
+награды кампаний и армию скирмиша они НЕ попадают - это остаётся другим модам (или вам).
+Чтобы просто играть с ними, возьмите вместо неё HEMTT_Spares_DefianceLoader_v{VERSION}.zip.
+{END}
 
 HEMTT Spares - пополняет вашей технике ЗАПЧАСТИ, так же как HEMTT Supply - боеприпасы.
 * Когда развернута, пополняет запчасти всей технике в зоне. Зона отмечена гаечными ключами.
 * Можно приказать ей пополнить конкретную машину, как любому транспорту снабжения.
 * 10000 запчастей на борту. Боеприпасы и топливо не раздаёт.
+{IF WHOLE}
 * Кампания Resistance: одна в магазине первого сектора, ещё - в тех же наградах за секторы,
   что и HEMTT Supply.
 * Основная кампания: по одной в каждом магазине.
 * Кампания Evolution: по одной в каждом магазине.
+{END}
 
 HEMTT Repair - передвижная ремонтная мастерская.
 * Когда развернута, чинит вашу и союзную технику в зоне: все повреждённые модули и поврежденную
   броню. Зона отмечена ключами и молотками.
 * Платит своими запчастями (везёт 10000): 1 за единицу здоровья модуля и за 1 мм брони.
   У ремонтируемой машины ничего не списывается. Запас кончился - ремонт останавливается.
+* Горящую машину сначала тушит: пламя сразу гаснет, экипаж может вернуться в машину.
+  Тушение бесплатное и работает даже с пустым запасом; потом идёт ремонт.
+* Брошенную технику (экипаж её покинул, например выскочил из горящей машины) тоже тушит и
+  чинит, чья бы она ни была.
 * Себя и уничтоженную технику не чинит.
+{IF WHOLE}
 * Кампания Resistance: одна в магазине первого сектора.
 * Основная кампания: по одной в каждом магазине.
 * Кампания Evolution: по одной в каждом магазине.
 
 Скирмиш: обе доступны Основателям (Founders).
+{END}
 {END}
 
 Как сделать свои машины снабжения запчастями или ремонта: см. SparesSupplyRepairFramework_MODDING.txt
@@ -250,6 +316,10 @@ HEMTT Repair - передвижная ремонтная мастерская.
 {IF DEFIANCE}
 * DefianceLoader 1.9.0 или новее, установленный в папку игры:
   https://github.com/DefianceLoader/DefianceLoader
+{END}
+{IF TABLEMERGE}
+* Включённое слияние таблиц DefianceLoader (defiance.table-merge, идёт вместе с загрузчиком) -
+  см. шаг 2 ниже. По умолчанию оно выключено; без него этот мод ничего не добавляет.
 {END}
 
 ## УСТАНОВКА
@@ -279,10 +349,21 @@ HEMTT Repair - передвижная ремонтная мастерская.
    с модами, которые на нём построены.
 {END}
 {IF EXAMPLE}
+{IF WHOLE}
 2. Запустите игру, в меню MODS включите оба мода: "SparesSupply & Repair Framework" (круги зон)
    и "HEMTT Spares" (машины).
 3. Начните новую миссию (или новую кампанию, чтобы получить машины в наградах).
    Можно и загрузить сохранение после миссии - машины появятся в следующем магазине.
+{END}
+{IF TABLEMERGE}
+2. Включите слияние таблиц: откройте DefianceLoader\config\settings.ini и в разделе
+   [defiance.table-merge] поставьте:
+       enabled = true
+3. Запустите игру, в меню MODS включите оба мода: "SparesSupply & Repair Framework" (круги зон)
+   и "HEMTT Spares" (машины), затем перезапустите игру.
+   Машины теперь есть в таблицах игры, но ни в одном магазине: нужен мод, который добавит их
+   в магазины или армии (их имена - Fnd_HEMTT_spares и Fnd_HEMTT_repairer).
+{END}
 {END}
 
 ## ПРОВЕРКА
@@ -294,6 +375,11 @@ HEMTT Repair - передвижная ремонтная мастерская.
 После запуска игры откройте DefianceLoader\logs\defiance-loader.log и найдите строки
 sokolov.spares-repair: "SparesSupply staged", а сам плагин - в списке активных.
 {END}
+{IF TABLEMERGE}
+Там же должна быть строка "table merge installed" с hemtt_spares в списке модов. Если
+sokolov.spares-repair пишет "mod hemtt_spares ships ... table patches ... that are IGNORED",
+слияние таблиц выключено: см. шаг 2.
+{END}
 {IF FRAMEWORK}
 Если там "not supported" - у вас другая сборка игры: машины на фреймворке пополняют запчасти
 только по приказу (без зоны F4) и не чинят. Сообщите об этом и приложите лог.
@@ -302,6 +388,9 @@ sokolov.spares-repair: "SparesSupply staged", а сам плагин - в спи
 Если там "not supported" - у вас другая сборка игры: HEMTT Spares пополняет запчасти
 только по приказу (без зоны F4), HEMTT Repair не чинит. Сообщите об этом и приложите лог.
 {END}
+Строка "fault in ..." значит, что плагин наткнулся на ошибку и пропустил этот шаг, а не уронил
+игру. После 3 таких строк он прекращает свою работу до перезапуска игры; машины тогда ведут себя
+как без мода. Об этом тоже сообщите и приложите лог.
 {IF DEFIANCE}
 Настройки: раздел [sokolov.spares-repair] в DefianceLoader\config\settings.ini
 ("enabled = false" - выключить плагин, "log = false" - не писать его события в лог).

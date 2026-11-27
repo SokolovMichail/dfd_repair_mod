@@ -93,14 +93,25 @@ constexpr size_t kAmmoOff = 0x59, kSparesOff = 0x51, kRepairOff = 0x49;
 
 // ---------------------------------------------------------------- teams and diplomacy
 
-// A team (player): the plugin only needs its number (method in slot 10).
+// A team (player): the plugin needs its number (method in slot 10) and its name (slot 13, +0x68: an MSVC
+// std::string; the game calls the team of vehicles whose crew has left them "abandoned").
 struct Team {
     void** vtbl;
     int id;
+    MsvcString name{};
+    // Set the name the way MSVC keeps a short string: the text right in the object (capacity 15).
+    void setName(const char* text) {
+        name = MsvcString{};
+        size_t n = strlen(text);
+        memcpy(&name, text, n < 15 ? n : 15);
+        name.size = n < 15 ? n : 15;
+        name.capacity = 15;
+    }
 };
 inline int teamId(void* t) { return static_cast<Team*>(t)->id; }
-inline void* g_teamVtbl[11] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                               nullptr, nullptr, nullptr, nullptr, fn(&teamId)};
+inline const MsvcString* teamName(void* t) { return &static_cast<Team*>(t)->name; }
+inline void* g_teamVtbl[14] = {nullptr, nullptr, nullptr, nullptr,     nullptr, nullptr, nullptr,
+                               nullptr, nullptr, nullptr, fn(&teamId), nullptr, nullptr, fn(&teamName)};
 
 // World diplomacy: the relation between two teams (method in slot 22). The plugin treats relations 2 and
 // 4 as "must not repair" (same as HEMTT Supply does for ammo). The test sets relations; default is 0.
@@ -134,18 +145,56 @@ struct ModuleSpec {
     std::array<std::vector<float>, 6> armor{};      // current layer thickness
     std::array<std::vector<float>, 6> armorFull{};  // original thickness (from the module description)
     bool noDesc = false;                            // module without a description (the plugin skips it)
+    std::vector<uint64_t> stateEffects{0, 0, 0, 0};  // effect flags of damage states 1..4 (0x8000 - smoke, fire)
 };
 
 // Module memory laid out the way the plugin reads it:
 //   module - 0x148 bytes: +0x00 description, +0x0c health, +0x28 + side*0x18 - current thickness
 //            (vector<float>: begin, end, capacity);
-//   description: +0x28 max health, +0x90 + side*0x18 - layers (16 bytes each, first 4 - original thickness).
+//   description: +0x28 max health, +0x30 effect flags per damage state (vector<uint64>), +0x90 + side*0x18 -
+//            layers (16 bytes each, first 4 - original thickness).
 struct ModuleMemory {
     std::vector<uint8_t> modules;
     std::deque<std::vector<uint8_t>> descs;
     std::deque<std::vector<float>> cur;
     std::deque<std::vector<std::array<float, 4>>> layers;
+    std::deque<std::vector<uint64_t>> effects;
 };
+
+// ---------------------------------------------------------------- boarding ban
+
+// TransportHelper - who may board a vehicle. The game blocks boarding for a while when a module reaches
+// deny_crew_load (together with the fire of that state). Methods: slot 73 (+0x248) isBlocked, slot 74 (+0x250)
+// unblock.
+struct Transport {
+    void** vtbl;
+    bool blocked = false;
+    int unblocks = 0;
+};
+inline bool transportIsBlocked(void* t) { return static_cast<Transport*>(t)->blocked; }
+inline void transportUnblock(void* t) {
+    auto tr = static_cast<Transport*>(t);
+    tr->blocked = false;
+    ++tr->unblocks;
+}
+inline void** transportVtbl() {
+    static void* vt[75] = {};
+    vt[73] = fn(&transportIsBlocked);
+    vt[74] = fn(&transportUnblock);
+    return vt;
+}
+
+// AiFacet: the plugin only asks it for the TransportHelper (slot 84, +0x2a0).
+struct Ai {
+    void** vtbl;
+    Transport* transport = nullptr;
+};
+inline void* aiTransport(void* a) { return static_cast<Ai*>(a)->transport; }
+inline void** aiVtbl() {
+    static void* vt[85] = {};
+    vt[84] = fn(&aiTransport);
+    return vt;
+}
 
 // ---------------------------------------------------------------- vehicle
 
@@ -157,13 +206,15 @@ inline void* g_vehicleVtbl[23] = {};
 
 // A vehicle (or an infantryman): list of components, team, world. Methods the plugin calls:
 //   slot 11 (+0x58) - iterator over components; slot 15 (+0x78) - world; slot 22 (+0xb0) - info block
-//   with the team at +0x20.
+//   with the team at +0x20 and the AiFacet at +0x28 (null until withCrew).
 // The object cannot be copied or moved: components keep a pointer to its reference block.
 struct Vehicle {
     void** vtbl = g_vehicleVtbl;
     alignas(8) uint8_t info[0x30]{};
     RefBlock self = makeBlock(this);
     Team team;
+    Transport transport{transportVtbl()};
+    Ai ai{aiVtbl(), &transport};
     bool nullIterator = false;  // true - no iterator is handed out (the engine returned nothing)
     std::deque<Facet> facets;
     std::deque<RefBlock> blocks;
@@ -175,6 +226,12 @@ struct Vehicle {
     Vehicle& operator=(const Vehicle&) = delete;
 
     void setTeam(Team* t) { memcpy(info + 0x20, &t, sizeof t); }
+    // Give the vehicle an AiFacet with a TransportHelper (a crew that may be banned from boarding).
+    Transport& withCrew() {
+        Ai* a = &ai;
+        memcpy(info + 0x28, &a, sizeof a);
+        return transport;
+    }
 
     // Add a component of class vt (vtable address). As in the game, it is created switched off - only the
     // "off" flag of this class is set (another class may keep a different field at the same offset: e.g.
@@ -259,6 +316,9 @@ inline Facet& Vehicle::addModules(const std::vector<ModuleSpec>& specs, int spar
         memcpy(mod + 0x00, &descPtr, 8);
         memcpy(mod + 0x0c, &s.hp, 4);
         memcpy(desc.data() + 0x28, &s.maxHp, 4);
+        std::vector<uint64_t>& eff = m.effects.emplace_back(s.stateEffects);
+        uint64_t* eb[3] = {eff.data(), eff.data() + eff.size(), eff.data() + eff.size()};
+        memcpy(desc.data() + 0x30, eb, sizeof eb);
         total += s.hp;
         for (int side = 0; side < 6; ++side) {
             std::vector<float>& cur = m.cur.emplace_back(s.armor[side]);
@@ -457,8 +517,12 @@ inline void reset() {
     g_circleWritable = true;
     g_repairTimers.clear();
     g_armorDebt.clear();
+    g_repair.zoneSizes.clear();
+    g_repair.zoneLogLines = 0;
     g_events = 0;
     g_repairLogs = 0;
+    g_faults = 0;
+    g_ownWorkOff = false;
 }
 
 // Switch a component on the way the game would without the plugin (the "off" flag = 0).

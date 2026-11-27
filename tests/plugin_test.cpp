@@ -666,6 +666,84 @@ TEST_CASE_FIXTURE(RepairZone, "logic.dll modules: the target gets back the spare
     CHECK(sparesIn(d.modules) == 7);
 }
 
+// ================================================================ fire
+
+namespace {
+// An engine of 100 health at 20 (damage state 3) that burns in state 3, as in the game's tables:
+// smoke(inflammation)+unload_crew+deny_crew_load in the third state.
+ModuleSpec burningEngine() {
+    ModuleSpec engine{20, 100};
+    engine.stateEffects = {0, 0, 0x8000 | 0x100 | 0x800, 0};
+    return engine;
+}
+}  // namespace
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll fire: the burning state is read from the module description") {
+    ModuleSpec engine = burningEngine(), state2{20, 100}, never{20, 100};
+    state2.stateEffects = {0, 0x8000, 0, 0};
+    never.stateEffects = {0x10, 0x100, 0x800, 0x4000};  // other effects, no smoke
+    Damaged d(1, {engine, state2, never});
+    d.v.withCrew().blocked = true;
+    auto m = repairPort().modulesOf(vehicle(&d.v));
+    REQUIRE(m);
+    CHECK(m->burnState(0) == 3);
+    CHECK(m->burnState(1) == 2);
+    CHECK(m->burnState(2) == 0);
+    CHECK(m->boardingBlocked());
+}
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll fire: put out with incHealth(module, 0) and the boarding ban lifted") {
+    Damaged d(1, {burningEngine()});
+    Transport& crew = d.v.withCrew();
+    crew.blocked = true;
+    zone({&d.v.self});
+
+    tick(0.5f);
+    REQUIRE(g_incHealth.size() == 1);
+    CHECK(g_incHealth[0].modules == d.modules.p());
+    CHECK(g_incHealth[0].index == 0u);
+    CHECK(g_incHealth[0].amount == 0);
+    CHECK(crew.unblocks == 1);
+    CHECK_FALSE(crew.blocked);
+    CHECK(moduleHp(d.modules, 0) == 20);
+    CHECK(sparesIn(d.modules) == 7);       // the target pays nothing
+    CHECK(sparesIn(r.modules) == 10000);   // neither does HEMTT Repair
+
+    tick(0.5f);  // then repair as usual
+    CHECK(moduleHp(d.modules, 0) == 22);
+    CHECK(crew.unblocks == 1);
+}
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll fire: no ban (burned out, or no crew) - simply repaired") {
+    Damaged burnedOut(1, {burningEngine()}), noCrew(1, {burningEngine()});
+    burnedOut.v.withCrew();  // crew, but the ban is over
+    zone({&burnedOut.v.self, &noCrew.v.self});
+    tick(0.5f);
+    CHECK(moduleHp(burnedOut.modules, 0) == 22);
+    CHECK(moduleHp(noCrew.modules, 0) == 22);
+}
+
+TEST_CASE_FIXTURE(RepairZone, "logic.dll abandoned: the team named \"abandoned\" is put out and repaired") {
+    // Three vehicles whose teams diplomacy calls hostile (relation 2): only the one on the game's "abandoned" team
+    // passes; "civilian" and a name that only starts the same do not.
+    Damaged left(9, {burningEngine()}), civilian(8, {burningEngine()}), other(7, {burningEngine()});
+    left.v.team.setName("abandoned");
+    civilian.v.team.setName("civilian");
+    other.v.team.setName("abandoned2");
+    for (Damaged* d : {&left, &civilian, &other}) d->v.withCrew().blocked = true;
+    g_relations[{9, 1}] = g_relations[{8, 1}] = g_relations[{7, 1}] = 2;
+    zone({&left.v.self, &civilian.v.self, &other.v.self});
+
+    tick(0.5f);
+    CHECK(left.v.transport.unblocks == 1);
+    CHECK(civilian.v.transport.unblocks == 0);
+    CHECK(other.v.transport.unblocks == 0);
+    tick(0.5f);
+    CHECK(moduleHp(left.modules, 0) == 22);
+    CHECK(moduleHp(civilian.modules, 0) == 20);
+    CHECK(moduleHp(other.modules, 0) == 20);
+}
+
 // ================================================================ log
 
 TEST_CASE_FIXTURE(RepairZone, "Repair log: what was done and what it cost; at most 40 lines") {
@@ -677,8 +755,10 @@ TEST_CASE_FIXTURE(RepairZone, "Repair log: what was done and what it cost; at mo
     snprintf(line, sizeof line, "repair: target=%p +20 hp, 0 armor layers, total hp 120; spent 20 spares, 9980 left",
              static_cast<void*>(&d.v));
     CHECK(log.has(line));
+    CHECK(log.has("repair: 1 vehicles in the zone"));
     for (int i = 0; i < 50; ++i) tick(0.5f);
     CHECK(log.count("repair: target=") == 40);
+    CHECK(log.count("vehicles in the zone") == 1);  // the zone did not change
 }
 
 TEST_CASE_FIXTURE(Engine, "Event log: at most 50 per run") {
@@ -686,4 +766,101 @@ TEST_CASE_FIXTURE(Engine, "Event log: at most 50 per run") {
     LogTail log(logFile());
     for (int i = 0; i < 60; ++i) trace("test event", s.ammo.p());
     CHECK(log.count("test event facet=") == 50);
+}
+
+// ================================================================ crash guard
+// The mod's part of every hook runs under the crash guard (common/guard.h): a fault in it - here a game function
+// that writes to address 0 - is skipped and logged, the game's original has run anyway, and the zone circle
+// materials are put back. After kMaxFaults faults the mod's work is off for the rest of the run.
+
+namespace {
+
+// Game functions that fault: the circle function (after drawing, as if it crashed halfway) and crew repair.
+void crashingShowCircle(void* ammo) {
+    showCircle(ammo);
+    int* volatile p = nullptr;
+    *p = 1;
+}
+void crashingIncHealth(void*, size_t, int) {
+    int* volatile p = nullptr;
+    *p = 1;
+}
+
+}  // namespace
+
+TEST_CASE_FIXTURE(Engine, "Crash guard: a fault while drawing the spares circle - skipped, the lea is put back") {
+    Spares s;
+    g_a.showCircle = reinterpret_cast<uintptr_t>(&crashingShowCircle);
+    LogTail log(logFile());
+
+    hookAmmoOn(s.ammo.p());
+
+    // The game's own activation ran before the fault, and the game goes on.
+    CHECK(callNames().front() == "ammo.on");
+    // The circle function faulted while the lea held the spares offset; the lea is back to ammoRecharge.
+    REQUIRE(g_draws.size() == 1);
+    CHECK(g_draws[0].lea == 0xE0u);
+    CHECK(leaOffset() == 0x120u);
+    CHECK(log.has("fault in F4 on: exception C0000005 at plugin_test.exe+"));
+    CHECK(log.has("(fault 1 of 3)"));
+    CHECK(g_faults == 1);
+    CHECK_FALSE(g_ownWorkOff);
+}
+
+TEST_CASE_FIXTURE(Engine, "Crash guard: a fault while drawing the repair circle - the material row is put back") {
+    Repair r;
+    g_a.showCircle = reinterpret_cast<uintptr_t>(&crashingShowCircle);
+
+    hookRepairOn(r.repair.p());
+
+    REQUIRE(g_draws.size() == 1);
+    CHECK(g_draws[0].material == "materials/rounds/repairRecharge.material");
+    CHECK(std::string(ammoMaterialEntry().ptr, ammoMaterialEntry().size) == kAmmoMaterial);
+    CHECK(ammoMaterialEntry().capacity == strlen(kAmmoMaterial));
+    CHECK(g_faults == 1);
+}
+
+TEST_CASE_FIXTURE(RepairZone, "Crash guard: a fault in a repair pulse - skipped, the next frame runs again") {
+    Damaged d;
+    zone({&d.v.self});
+    circleField(r.ammo) = newCircle();
+    g_a.incHealth = reinterpret_cast<uintptr_t>(&crashingIncHealth);
+    LogTail log(logFile());
+
+    hookAmmoUpdate(r.ammo.p(), 0.1f);
+    CHECK(callNames() == std::vector<std::string>{"ammo.update"});
+    CHECK(moduleHp(d.modules, 0) == 50);
+    CHECK(log.has("fault in F4 tick: exception C0000005"));
+
+    // The game function works again: the next pulse repairs.
+    g_a.incHealth = reinterpret_cast<uintptr_t>(&incHealth);
+    hookAmmoUpdate(r.ammo.p(), 0.5f);
+    CHECK(moduleHp(d.modules, 0) == 52);
+    CHECK(g_faults == 1);
+}
+
+TEST_CASE_FIXTURE(RepairZone, "Crash guard: after 3 faults the mod's work is off, the hooks only call the originals") {
+    Damaged d;
+    zone({&d.v.self});
+    g_a.incHealth = reinterpret_cast<uintptr_t>(&crashingIncHealth);
+    LogTail log(logFile());
+
+    for (int i = 0; i < 5; ++i) hookAmmoUpdate(r.ammo.p(), 0.5f);
+
+    CHECK(g_faults == 3);  // the 4th and 5th frames did not run the mod's work at all
+    CHECK(g_ownWorkOff);
+    CHECK(log.count("fault in F4 tick") == 3);
+    CHECK(log.count("too many faults") == 1);
+
+    // Everything else is the game's own now: F4 on HEMTT Spares does not switch spare parts on...
+    Spares s;
+    g_calls.clear();
+    hookAmmoOn(s.ammo.p());
+    CHECK(callNames() == std::vector<std::string>{"ammo.on"});
+    CHECK_FALSE(isOnFlag(s.spares, kSparesOff));
+    // ...and switching spare parts off is no longer held back by F4 mode.
+    turnOn(s.spares, kSparesOff);
+    g_calls.clear();
+    hookSparesOff(s.spares.p());
+    CHECK(callNames() == std::vector<std::string>{"spares.off"});
 }

@@ -7,6 +7,7 @@
 #   plugin_install_test  - finding addresses and applying patches in a fake logic.dll ("all or nothing")
 #   plugin_defiance_test - the DefianceLoader plugin (spares_repair.dll): the writes it asks a fake loader for
 #   core_test            - the game-agnostic rules (plugins/spares_supply/core) through plain test ports
+#   guard_test           - the crash guard (common/guard.h) on real faults
 
 # A test is an ordinary doctest program run by CTest. It is not built like the mod DLLs (-static
 # -mcrtdll=ucrt): in this MinGW libstdc++.a is built for msvcrt and libwinpthread.a for UCRT, and the I/O
@@ -34,6 +35,8 @@ dfd_dll(dfd_watcher_test)
 dfd_test(patch_h_test patch_h_test.cpp)
 add_dependencies(patch_h_test dfd_watcher_test)
 target_compile_definitions(patch_h_test PRIVATE "WATCHER_DLL_NAME=\"$<TARGET_FILE_NAME:dfd_watcher_test>\"")
+
+dfd_test(guard_test guard_test.cpp ${DFD_GUARD_SOURCES})
 
 dfd_test(plugin_test plugin_test.cpp ${SPARES_SUPPLY_SOURCES})
 dfd_test(plugin_install_test plugin_install_test.cpp ${SPARES_SUPPLY_SOURCES})

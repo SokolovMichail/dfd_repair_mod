@@ -17,6 +17,7 @@
 #include <array>
 #include <cstdio>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,19 +30,24 @@ namespace {
 
 // ================================================================ test vehicles
 
-// One module of a test vehicle: health, and armor layers on 6 sides (current and original thickness).
+// One module of a test vehicle: health, armor layers on 6 sides (current and original thickness), and the damage
+// state in which it burns (0 - never).
 struct ModuleData {
     int hp = 100, maxHp = 100;
     bool described = true;
     std::array<std::vector<float>, 6> armor{};
     std::array<std::vector<float>, 6> full{};
+    int burn = 0;
 };
 
-// A test vehicle: its modules, its own spare parts and a record of addHealth calls.
+// A test vehicle: its modules, its own spare parts, whether its crew may board, and a record of addHealth and
+// putOutFire calls.
 struct VehicleData {
     std::vector<ModuleData> modules;
     int spares = 7;
+    bool boardingBlocked = false;
     std::vector<std::pair<size_t, int>> addHealthCalls;  // (module, amount)
+    std::vector<size_t> putOutCalls;                     // modules put out
 
     explicit VehicleData(std::vector<ModuleData> m = {}, int stock = 7) : modules(std::move(m)), spares(stock) {}
 };
@@ -76,6 +82,13 @@ public:
     void setThickness(size_t i, int side, size_t k, float v) override { d_.modules[i].armor[side][k] = v; }
     int spareParts() const override { return d_.spares; }
     void setSpareParts(int v) override { d_.spares = v; }
+    int burnState(size_t i) const override { return d_.modules[i].burn; }
+    bool boardingBlocked() const override { return d_.boardingBlocked; }
+    // As in the game: putting a module out also lifts the vehicle's boarding ban.
+    void putOutFire(size_t i) override {
+        d_.putOutCalls.push_back(i);
+        d_.boardingBlocked = false;
+    }
 
 private:
     VehicleData& d_;
@@ -83,6 +96,15 @@ private:
 
 // A damaged vehicle with one module at 50 of 100.
 VehicleData damaged() { return VehicleData{{ModuleData{50, 100}}}; }
+
+// A vehicle on fire: its engine (100 health, burns in state 3) at 20 - below 33% - and its crew may not board.
+VehicleData burning() {
+    ModuleData engine{20, 100};
+    engine.burn = 3;
+    VehicleData v{{engine}};
+    v.boardingBlocked = true;
+    return v;
+}
 
 // Opaque handles for test objects (the core never looks inside them).
 template <class T>
@@ -115,11 +137,13 @@ public:
     std::map<std::pair<int, int>, int> relations;  // (target team, owner team) -> relation; default 0
     bool diplomacy = true;
     std::map<Vehicle*, VehicleData*> vehicles;  // a vehicle missing here has no modules (infantry)
+    std::set<Vehicle*> abandonedOnes;           // vehicles on the game's team "abandoned"
     std::vector<std::pair<int, int>> relationAsks;
     std::vector<std::string> lines, events;
 
     Vehicle* owner(Station* s) override { return owners[s]; }
     std::vector<Vehicle*> inZone(Station* s) override { return zones[s]; }
+    bool abandoned(Vehicle* v) override { return abandonedOnes.count(v) != 0; }
     std::optional<int> relation(Vehicle* owner, Vehicle* target) override {
         if (!diplomacy || !teams.count(owner) || !teams.count(target)) return std::nullopt;
         relationAsks.push_back({teams[target], teams[owner]});
@@ -415,13 +439,40 @@ TEST_CASE("Stock ran out in the middle of a side - that side's armor is finished
 
 // ================================================================ whom HEMTT Repair repairs
 
-TEST_CASE("mayRepair: own side and allies - yes; relation 2 or 4, or unknown - no") {
-    CHECK(mayRepair(0));
-    CHECK(mayRepair(1));
-    CHECK(mayRepair(3));
-    CHECK_FALSE(mayRepair(2));
-    CHECK_FALSE(mayRepair(4));
-    CHECK_FALSE(mayRepair(std::nullopt));  // no diplomacy or no team
+TEST_CASE_FIXTURE(RepairScene, "mayRepair: own side and allies - yes; relation 2 or 4, or unknown - no") {
+    Vehicle* owner = vehicle(truck);
+    int targets[6] = {};
+    for (int team = 2; team <= 6; ++team) port.teams[vehicle(targets[team - 2])] = team;
+    port.relations[{3, 1}] = 1;
+    port.relations[{4, 1}] = 2;
+    port.relations[{5, 1}] = 3;
+    port.relations[{6, 1}] = 4;
+    CHECK(mayRepair(port, owner, vehicle(targets[0])));        // relation 0
+    CHECK(mayRepair(port, owner, vehicle(targets[1])));        // 1
+    CHECK_FALSE(mayRepair(port, owner, vehicle(targets[2])));  // 2
+    CHECK(mayRepair(port, owner, vehicle(targets[3])));        // 3
+    CHECK_FALSE(mayRepair(port, owner, vehicle(targets[4])));  // 4
+    CHECK_FALSE(mayRepair(port, owner, vehicle(targets[5])));  // no team
+    port.diplomacy = false;
+    CHECK_FALSE(mayRepair(port, owner, vehicle(targets[0])));  // no diplomacy
+}
+
+TEST_CASE_FIXTURE(RepairScene, "mayRepair: never an empty entry or HEMTT Repair itself") {
+    CHECK_FALSE(mayRepair(port, vehicle(truck), nullptr));
+    CHECK_FALSE(mayRepair(port, vehicle(truck), vehicle(truck)));
+    port.abandonedOnes.insert(vehicle(truck));  // not even if the game called it abandoned
+    CHECK_FALSE(mayRepair(port, vehicle(truck), vehicle(truck)));
+    CHECK(port.relationAsks.empty());
+}
+
+TEST_CASE_FIXTURE(RepairScene, "mayRepair: an abandoned vehicle - yes, without asking diplomacy") {
+    int left = 0, noTeam = 0;
+    port.teams[vehicle(left)] = 9;
+    port.relations[{9, 1}] = 2;  // the "abandoned" team is hostile in diplomacy
+    port.abandonedOnes = {vehicle(left), vehicle(noTeam)};
+    CHECK(mayRepair(port, vehicle(truck), vehicle(left)));
+    CHECK(mayRepair(port, vehicle(truck), vehicle(noTeam)));
+    CHECK(port.relationAsks.empty());
 }
 
 // ================================================================ repair pulse over the zone
@@ -554,12 +605,14 @@ TEST_CASE("Repair: each station has its own armor debt, and it survives between 
     CHECK(shared.debt[r2.s] == doctest::Approx(0.5f));
 }
 
-TEST_CASE_FIXTURE(RepairScene, "forgetRepair drops the station's timer and debt") {
+TEST_CASE_FIXTURE(RepairScene, "forgetRepair drops the station's timer, debt and zone size") {
     state.timers[s] = 0.3f;
     state.debt[s] = 0.5f;
+    state.zoneSizes[s] = 2;
     forgetRepair(state, s);
     CHECK(state.timers.count(s) == 0);
     CHECK(state.debt.count(s) == 0);
+    CHECK(state.zoneSizes.count(s) == 0);
 }
 
 TEST_CASE_FIXTURE(RepairScene, "Repair log: what was done and what it cost; at most 40 lines") {
@@ -569,10 +622,217 @@ TEST_CASE_FIXTURE(RepairScene, "Repair log: what was done and what it cost; at m
     char line[160];
     snprintf(line, sizeof line, "repair: target=%p +20 hp, 0 armor layers, total hp 120; spent 20 spares, 9980 left",
              static_cast<void*>(&d));
-    REQUIRE(port.lines.size() == 1);
-    CHECK(port.lines[0] == line);
+    REQUIRE(port.lines.size() == 2);
+    CHECK(port.lines[0] == "repair: 1 vehicles in the zone");
+    CHECK(port.lines[1] == line);
     for (int i = 0; i < 50; ++i) tick(0.5f);
+    CHECK(port.lines.size() == 41u);  // 40 repair lines; the zone did not change
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Repair log: the number of vehicles in the zone, whenever it changes") {
+    VehicleData a = damaged(), b = damaged();
+    a.modules[0].hp = b.modules[0].hp = 100;  // intact: no repair lines, only the zone
+    add(a);
+    port.zones[s].push_back(nullptr);  // empty entries are not counted
+    tick(0.5f);
+    tick(0.5f);  // the same - not logged again
+    add(b);
+    tick(0.5f);
+    port.zones[s].clear();
+    tick(0.5f);
+    CHECK(port.lines == std::vector<std::string>{"repair: 1 vehicles in the zone", "repair: 2 vehicles in the zone",
+                                                 "repair: 0 vehicles in the zone"});
+
+    // After F4 mode ends, the next pulse logs the zone again; at most 40 such lines per run.
+    forgetRepair(state, s);
+    tick(0.5f);
+    CHECK(port.lines.back() == "repair: 0 vehicles in the zone");
+    CHECK(port.lines.size() == 4u);
+    for (int i = 0; i < 60; ++i) {
+        if (i % 2) add(a);
+        else port.zones[s].clear();
+        tick(0.5f);
+    }
     CHECK(port.lines.size() == 40u);
+}
+
+// ================================================================ fire
+
+TEST_CASE("moduleState: the game's states by health, with its float thresholds") {
+    CHECK(moduleState(100, 100) == 0);  // full health - intact
+    CHECK(moduleState(120, 100) == 0);
+    CHECK(moduleState(99, 100) == 1);
+    CHECK(moduleState(66, 100) == 1);  // 0.66f is the lower edge of state 1
+    CHECK(moduleState(65, 100) == 2);
+    CHECK(moduleState(33, 100) == 2);  // 0.33f is the lower edge of state 2
+    CHECK(moduleState(32, 100) == 3);
+    CHECK(moduleState(1, 100) == 3);
+    CHECK(moduleState(0, 100) == 4);  // destroyed
+    // The edges follow the float division, as in the game, for any maximum.
+    for (int maxHp : {30, 300, 600, 1000, 1700}) {
+        for (int hp = 0; hp <= maxHp; ++hp) {
+            float ratio = static_cast<float>(hp) / static_cast<float>(maxHp);
+            int expected = hp == maxHp ? 0 : hp == 0 ? 4 : ratio < 0.33f ? 3 : ratio < 0.66f ? 2 : 1;
+            REQUIRE(moduleState(hp, maxHp) == expected);
+        }
+    }
+}
+
+TEST_CASE("burningModules: in its burning state or a worse one, while boarding is blocked") {
+    ModuleData engine{20, 100}, crew{10, 100}, turret{50, 100}, gun{0, 100}, plain{5, 100};
+    engine.burn = 3;  // state 3 - burns
+    crew.burn = 3;    // state 3 - burns
+    turret.burn = 3;  // state 2 - not yet
+    gun.burn = 3;     // state 4 (destroyed module) - still burns
+    // plain: never burns
+    VehicleData v{{engine, crew, turret, gun, plain, ModuleData{}}};
+    v.boardingBlocked = true;
+    TestModules m(v);
+    CHECK(burningModules(m) == std::vector<size_t>{0, 1, 3});
+
+    // The ban is over: the fire has burned out by itself (or the module never had a crew ban).
+    v.boardingBlocked = false;
+    CHECK(burningModules(m).empty());
+}
+
+TEST_CASE("burningModules: an undescribed module, or a destroyed vehicle, is not on fire") {
+    VehicleData v = burning();
+    v.modules[0].described = false;
+    TestModules m(v);
+    CHECK(burningModules(m).empty());
+
+    VehicleData wreck = burning();
+    wreck.modules[0].hp = 0;  // total health 0
+    TestModules w(wreck);
+    CHECK(burningModules(w).empty());
+}
+
+TEST_CASE("extinguish: every burning module is put out, though the first one already lifts the ban") {
+    ModuleData a{10, 100}, b{20, 100};
+    a.burn = b.burn = 3;
+    VehicleData v{{a, b, ModuleData{50, 100}}};
+    v.boardingBlocked = true;
+    TestModules m(v);
+    CHECK(extinguish(m) == 2);
+    CHECK(v.putOutCalls == std::vector<size_t>{0, 1});
+    CHECK(v.addHealthCalls.empty());  // putting out adds no health
+    CHECK(v.modules[0].hp == 10);
+    CHECK(extinguish(m) == 0);  // nothing burns any more
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Fire: put out first - free, nothing else that pulse; repair from the next one") {
+    VehicleData d = burning();
+    d.modules[0].armor[0] = {10};
+    d.modules[0].full[0] = {25};
+    add(d);
+
+    tick(0.5f);  // the first pulse puts the fire out
+    CHECK(d.putOutCalls == std::vector<size_t>{0});
+    CHECK_FALSE(d.boardingBlocked);
+    CHECK(d.modules[0].hp == 20);              // no health added
+    CHECK(d.modules[0].armor[0][0] == 10.0f);  // no armor either
+    CHECK(truck.spares == 10000);              // and it cost nothing
+
+    tick(0.5f);  // the next pulse repairs as usual
+    CHECK(d.putOutCalls.size() == 1u);
+    CHECK(d.modules[0].hp == 22);
+    CHECK(d.modules[0].armor[0][0] == doctest::Approx(10.5f));
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Fire: a fire that burned out by itself (no ban any more) is simply repaired") {
+    VehicleData d = burning();
+    d.boardingBlocked = false;
+    add(d);
+    tick(0.5f);
+    CHECK(d.putOutCalls.empty());
+    CHECK(d.modules[0].hp == 22);
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Fire: a boarding ban without a burning module - simply repaired") {
+    VehicleData d = damaged();  // 50 of 100: state 2
+    d.modules[0].burn = 3;
+    d.boardingBlocked = true;
+    add(d);
+    tick(0.5f);
+    CHECK(d.putOutCalls.empty());
+    CHECK(d.modules[0].hp == 52);
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Fire: put out with an empty stock too; the empty stock is not reported") {
+    VehicleData d = burning();
+    add(d);
+    truck.spares = 0;
+    tick(0.5f);
+    CHECK(d.putOutCalls == std::vector<size_t>{0});
+    CHECK(port.events.empty());
+    tick(0.5f);  // nothing to repair with
+    CHECK(d.modules[0].hp == 20);
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Fire: other vehicles in the zone are repaired in the same pulse") {
+    VehicleData a = damaged(), fire = burning(), b = damaged();
+    add(a);
+    add(fire);
+    add(b);
+    tick(0.5f);
+    CHECK(a.modules[0].hp == 52);
+    CHECK(fire.putOutCalls.size() == 1u);
+    CHECK(fire.modules[0].hp == 20);
+    CHECK(b.modules[0].hp == 52);
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Fire: enemies and HEMTT Repair itself are not put out") {
+    VehicleData enemy = burning();
+    add(enemy, 2);
+    port.relations[{2, 1}] = 2;
+    ModuleData engine{20, 100};
+    engine.burn = 3;
+    truck.modules = {engine};
+    truck.boardingBlocked = true;
+    tick(0.5f);
+    CHECK(enemy.putOutCalls.empty());
+    CHECK(truck.putOutCalls.empty());
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Abandoned: put out and then repaired, whatever diplomacy says about its team") {
+    // The crew bailed out of the fire, and the game moved the vehicle to its team "abandoned" (here team 9, which
+    // diplomacy calls hostile to HEMTT Repair's team 1).
+    VehicleData d = burning();
+    add(d, 9);
+    port.relations[{9, 1}] = 2;
+    port.abandonedOnes.insert(vehicle(d));
+
+    tick(0.5f);
+    CHECK(d.putOutCalls == std::vector<size_t>{0});
+    CHECK(port.relationAsks.empty());  // diplomacy is not even asked
+    tick(0.5f);
+    CHECK(d.modules[0].hp == 22);
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Abandoned: a vehicle without a team is still repaired") {
+    VehicleData d = damaged();
+    add(d, -1);
+    port.abandonedOnes.insert(vehicle(d));
+    tick(0.5f);
+    CHECK(d.modules[0].hp == 52);
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Abandoned: HEMTT Repair itself is still skipped") {
+    truck.modules = {ModuleData{50, 100}};
+    port.zones[s].push_back(vehicle(truck));
+    port.abandonedOnes.insert(vehicle(truck));
+    tick(0.5f);
+    CHECK(truck.modules[0].hp == 50);
+}
+
+TEST_CASE_FIXTURE(RepairScene, "Fire: the log says which vehicle was put out") {
+    VehicleData d = burning();
+    add(d);
+    tick(0.5f);
+    char line[160];
+    snprintf(line, sizeof line, "repair: fire out target=%p, 1 burning modules", static_cast<void*>(&d));
+    REQUIRE(port.lines.size() == 2);  // the zone line comes first
+    CHECK(port.lines[1] == line);
 }
 
 // ================================================================ HEMTT Spares rules

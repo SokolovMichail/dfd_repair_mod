@@ -74,15 +74,20 @@ bool redrawSparesCircle(void* ammo) {
     return true;
 }
 
+void restoreSparesCircle() {
+    if (g_circleWritable && *reinterpret_cast<uint32_t*>(g_a.circleLea + 3) != kMaterialAmmo)
+        setCircleMaterial(kMaterialAmmo);
+}
+
 // Перехваты RefuellerFacet::activate / deactivate (слоты 14 / 13): оригинал + то же для запчастей
 // машины (на случай машины с refuel и support - режим F4 тогда берёт заправщик).
 void hookFuelOn(void* f) {
     g_origFuelOn(f);
-    syncSpares(f, true);
+    guarded("refueller F4 on", [&] { syncSpares(f, true); });
 }
 void hookFuelOff(void* f) {
     g_origFuelOff(f);
-    syncSpares(f, false);
+    guarded("refueller F4 off", [&] { syncSpares(f, false); });
 }
 
 // F4 mode: tick the spare parts of the same vehicle as recharger - core::tickSpares. Returns the spare parts
@@ -92,7 +97,7 @@ void* tickSpares(void* recharger, float dt) { return core::tickSpares(g_sparesPo
 // Перехват RefuellerFacet::update (слот 10): оригинал + тик запчастей той же машины в режиме F4.
 void hookFuelUpdate(void* f, float dt) {
     g_origFuelUpdate(f, dt);
-    tickSpares(f, dt);
+    guarded("refueller F4 tick", [&] { tickSpares(f, dt); });
 }
 
 // Перехват SparesRechargerFacet::update (слот 10). Сам движок его не вызывает - его вызываем мы
@@ -102,23 +107,29 @@ void hookSparesUpdate(void* spares, float dt) {
     g_origSparesUpdate(spares, dt);
     static float acc = 0;
     static int lines = 0;
-    if (!g_logEvents || !isOn(spares, kSparesOffFlag) || lines >= 20) return;
-    acc += dt;
-    if (acc < 1.0f) return;
-    acc = 0;
-    ++lines;
-    auto b = *reinterpret_cast<char**>(static_cast<char*>(spares) + 0x28);
-    auto e = *reinterpret_cast<char**>(static_cast<char*>(spares) + 0x30);
-    g_log("spares active facet=%p radius=%.1f targets=%d", spares, *reinterpret_cast<float*>(g_a.supplyRadius),
-          static_cast<int>((e - b) / 8));
+    if (!g_logEvents || lines >= 20) return;
+    guarded("spares zone log", [&] {
+        if (!isOn(spares, kSparesOffFlag)) return;
+        acc += dt;
+        if (acc < 1.0f) return;
+        acc = 0;
+        ++lines;
+        auto b = *reinterpret_cast<char**>(static_cast<char*>(spares) + 0x28);
+        auto e = *reinterpret_cast<char**>(static_cast<char*>(spares) + 0x30);
+        g_log("spares active facet=%p radius=%.1f targets=%d", spares, *reinterpret_cast<float*>(g_a.supplyRadius),
+              static_cast<int>((e - b) / 8));
+    });
 }
 
 // Перехват SparesRechargerFacet::deactivate (слот 13). Приказ «пополнить» по клику по окончании
 // выключает запчасти - если в это время у машины включён режим F4 (боеприпасы или заправщик), выключение
 // пропускаем, иначе раздача по зоне оборвалась бы.
 void hookSparesOff(void* spares) {
-    // the rule itself (and its log line) - core::mayTurnSparesOff
-    if (!core::mayTurnSparesOff(g_sparesPort, depot(spares))) return;
+    // the rule itself (and its log line) - core::mayTurnSparesOff; a fault in it, or the mod's work off - the
+    // game's own behaviour: switch off
+    bool allow = true;
+    guarded("spares off", [&] { allow = core::mayTurnSparesOff(g_sparesPort, depot(spares)); });
+    if (!allow) return;
     g_origSparesOff(spares);
 }
 

@@ -7,8 +7,9 @@ can use them; your mod only describes the vehicle in the game's tables. No code 
   zone, the way HEMTT Supply hands out ammunition. The zone is drawn with wrench icons.
 - **Repair zone.** A deployed vehicle repairs own and allied vehicles in its zone, twice a second: every
   damaged module gets 2% of its maximum health, and every worn armor layer 2% of its original thickness. It
-  pays with its own spare parts: 1 per health point, 1 per millimetre of armor. The zone is drawn with
-  wrench-and-hammer icons.
+  pays with its own spare parts: 1 per health point, 1 per millimetre of armor. A vehicle on fire is put out
+  first, for free: the flames go off and its crew may board again; repair starts on the next pulse. The zone
+  is drawn with wrench-and-hammer icons.
 
 HEMTT Spares, the framework's example mod, adds one vehicle of each kind.
 
@@ -56,8 +57,9 @@ only resupplies spare parts on a direct order, and has no F4 zone.
 
 The repair vehicle:
 - does not repair itself or destroyed vehicles;
-- repairs only own and allied vehicles;
-- stops when its spare parts run out.
+- repairs only own and allied vehicles, and abandoned ones (whose crew has left them, e.g. bailed out of a fire);
+- puts out a burning vehicle before repairing it (free of charge);
+- stops repairing when its spare parts run out (it still puts out fires).
 
 Without the framework it does nothing.
 
@@ -86,8 +88,16 @@ together. Leave out what the vehicle should not do: `support` (spare parts), `re
 
 - **The game replaces whole files.** A mod that ships `scripts/species/cars.xml` replaces the game's
   `cars.xml` and every other mod's. Two vehicle mods that both ship it conflict, HEMTT Spares included: in
-  MODS only the higher one wins. Ship only the tables you change. DefianceLoader has an experimental
-  "mod table merge" feature that patches tables row by row instead.
+  MODS only the higher one wins. Ship only the tables you change.
+- **Or ship table patches (DefianceLoader).** DefianceLoader's `defiance.table-merge` plugin (experimental, off by
+  default) merges `<table>.<your mod folder in lower case>.patch.xml`, placed beside the table, into the game's
+  table row by row: a table with a `sysname` column and only the columns you set; new rows are added, existing
+  rows get your non-empty cells. HEMTT Spares has such a build (`HEMTT_Spares_DefianceLoader_TableMerge`).
+  Two limits: a list kept in one cell, such as a shop's vehicles in `shop_presets.xml`, can only be replaced
+  whole, so two mods that add to the same shop still clash on that cell; and non-table files such as
+  `scripts/default_army.toml` cannot be patched at all. The HEMTT Spares table-merge build therefore adds its
+  vehicles to no shop or army. Players must turn the merge on (`enabled = true` under `[defiance.table-merge]`);
+  the framework's plugin logs a warning naming your mod when it is off.
 - **Do not ship the framework's files.** Do not include its DLLs or `mods\SparesSupplyRepairFramework` in
   your mod; ask players to install the framework. Two copies of the plugin do not work together.
 - **Your vehicle also needs:**

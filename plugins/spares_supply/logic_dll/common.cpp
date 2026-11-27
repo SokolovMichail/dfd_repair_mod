@@ -91,6 +91,50 @@ void trace(const char* what, void* facet) {
     }
 }
 
+// ---------------------------------------------------------------- crash guard
+
+int g_faults = 0;
+bool g_ownWorkOff = false;
+
+namespace {
+
+// "logic.dll+0012ABCD": the module the faulting instruction is in and the offset in it; "?" - in no module.
+void describeAddress(uintptr_t at, char* out, size_t size) {
+    HMODULE m = nullptr;
+    char path[MAX_PATH] = "?";
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCSTR>(at), &m) &&
+        GetModuleFileNameA(m, path, sizeof path)) {
+        const char* name = strrchr(path, '\\');
+        snprintf(out, size, "%s+%08llX", name ? name + 1 : path,
+                 static_cast<unsigned long long>(at - reinterpret_cast<uintptr_t>(m)));
+    } else {
+        snprintf(out, size, "%p (no module)", reinterpret_cast<void*>(at));
+    }
+}
+
+}  // namespace
+
+// Always logged, whatever g_logEvents says: at most kMaxFaults lines per run, and they are what a bug report
+// needs.
+void onFault(const char* where, const dfd::Fault& fault) {
+    restoreCircleMaterials();
+    ++g_faults;
+    char at[MAX_PATH + 32];
+    describeAddress(fault.address, at, sizeof at);
+    g_log("fault in %s: exception %08lX at %s - skipped (fault %d of %d)", where, fault.code, at, g_faults,
+          kMaxFaults);
+    if (g_faults >= kMaxFaults) {
+        g_ownWorkOff = true;
+        g_log("too many faults: the mod's supply work is off until the game restarts, vehicles keep the game's own");
+    }
+}
+
+void restoreCircleMaterials() {
+    restoreSparesCircle();
+    restoreRepairCircle();
+}
+
 // ---------------------------------------------------------------- круг зоны
 
 // Круги, уже перерисованные своим материалом.
@@ -154,16 +198,18 @@ core::Ports& ports() {
 void hookAmmoOn(void* f) {
     g_origAmmoOn(f);
     // the mod's part - core::onSupplyOn (core/supply.cpp)
-    core::onSupplyOn(ports(), station(f));
+    guarded("F4 on", [&] { core::onSupplyOn(ports(), station(f)); });
 }
 // Перехват AmmoRechargerFacet::deactivate (слот 13) - режим F4 выключен. Забываем круг и состояние
 // ремонта этого компонента, вызываем оригинал (убирает круг), у HEMTT Spares выключаем запчасти.
 void hookAmmoOff(void* f) {
     // before the original: it removes the circle, and [ammo+0x50] would already be empty
-    if (void* c = circleOf(f)) g_ownCircles.erase(c);
+    guarded("F4 off", [&] {
+        if (void* c = circleOf(f)) g_ownCircles.erase(c);
+    });
     g_origAmmoOff(f);
     // the mod's part - core::onSupplyOff: forget the repair state, switch spare parts off
-    core::onSupplyOff(ports(), station(f));
+    guarded("F4 off", [&] { core::onSupplyOff(ports(), station(f)); });
 }
 
 // Перехват AmmoRechargerFacet::update (слот 10), движок вызывает его каждый кадр. Оригинал раздаёт
@@ -173,7 +219,7 @@ void hookAmmoOff(void* f) {
 void hookAmmoUpdate(void* f, float dt) {
     g_origAmmoUpdate(f, dt);
     // the mod's part - core::onSupplyTick (does nothing while F4 mode is off)
-    core::onSupplyTick(ports(), station(f), dt);
+    guarded("F4 tick", [&] { core::onSupplyTick(ports(), station(f), dt); });
 }
 
 // ---------------------------------------------------------------- поиск и установка

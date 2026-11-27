@@ -30,6 +30,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../../../common/guard.h"
 #include "../../../common/patch.h"
 #include "../core/supply.h"
 
@@ -170,6 +171,29 @@ Kind kindOf(void* ammo);
 
 // Write an event to the log - only the first 50 per run: what happened, with which component and vehicle.
 void trace(const char* what, void* facet);
+
+// Crash guard. Every hook calls the game's original as usual and runs the mod's own work after (or before) it
+// under guarded(): a fault there - in our code or in game code it calls - skips the rest of that work instead
+// of crashing the game, puts the zone circle materials back (restoreCircleMaterials) and is logged. After
+// kMaxFaults faults the mod's own work is off until the game restarts (g_ownWorkOff): the hooks then only call
+// the originals, and the vehicles behave as the game makes them.
+constexpr int kMaxFaults = 3;
+extern int g_faults;       // faults so far in this run
+extern bool g_ownWorkOff;  // true - kMaxFaults reached, guarded() runs nothing
+void onFault(const char* where, const dfd::Fault& fault);
+// Run f, the mod's part of a hook, under the guard; `where` names it in the log. true - f ran to the end;
+// false - it faulted, or the mod's work is off.
+template <class F>
+bool guarded(const char* where, F&& f) {
+    if (g_ownWorkOff) return false;
+    dfd::Fault fault;
+    if (!dfd::guarded(f, &fault)) return true;
+    onFault(where, fault);
+    return false;
+}
+// Put the ammo circle material back where a redraw swapped it (spares: the lea offset, repair: the material
+// table row), so a fault in the middle of a redraw does not leave every ammo circle drawn with our icons.
+void restoreCircleMaterials();
 
 // Zone circle (common.cpp); the materials themselves are drawn by spares.cpp / repair.cpp.
 extern std::unordered_set<void*> g_ownCircles;

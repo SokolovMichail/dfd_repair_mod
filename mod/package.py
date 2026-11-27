@@ -1,21 +1,26 @@
-"""Упаковывает релиз: архив со структурой папки игры (+ обложка для публикации). Четыре комплекта - фреймворк
-отдельно или вместе с модом-примером HEMTT Spares, в отдельной версии или под DefianceLoader:
+"""Packages a release: an archive with the game folder structure (+ a cover for publishing). Five packages - the
+framework alone or together with the HEMTT Spares example mod, as the standalone build or for DefianceLoader, and
+HEMTT Spares for DefianceLoader once more as its table-merge build:
 
-    python mod/package.py [--mod <собранная папка HEMTT_Spares>] --framework-mod <собранная папка мини-мода>
+    python mod/package.py [--mod <built HEMTT_Spares folder>] --framework-mod <built mini-mod folder>
                           --winhttp <winhttp.dll> --plugin <SparesSupply.dll>
-                          [--game-src <распакованные файлы игры, слой base>] --version 1.0 --out <папка dist>
+                          [--game-src <extracted game files, base layer>] --version 1.0 --out <dist folder>
     python mod/package.py --defiance [--mod <...>] --framework-mod <...> --plugin <spares_repair.dll>
-                          --manifest <spares_repair.plugin.json> [--game-src <...>] --version 1.0 --out <папка dist>
+                          --manifest <spares_repair.plugin.json> [--game-src <...>] --version 1.0 --out <dist folder>
+    python mod/package.py --defiance --tablemerge --mod <HEMTT_Spares built with build_mod.py --tables patch> ...
 
-- без --mod - только фреймворк: SparesSupplyRepairFramework_v<версия>.zip
-  (с --defiance - SparesSupplyRepairFramework_DefianceLoader_v<версия>.zip): плагин + мини-мод фреймворка
-  (круги зоны) в mods/SparesSupplyRepairFramework;
-- с --mod - фреймворк + HEMTT Spares (mods/HEMTT_Spares): HEMTT_Spares_v<версия>.zip
-  (HEMTT_Spares_DefianceLoader_v<версия>.zip), и ещё обложка <out>/HEMTT_Spares_v<версия>_cover.png (1920x1080)
-  и превью _banner.png (1300x372) для страницы мода - для этого нужен --game-src.
+- without --mod - the framework only: SparesSupplyRepairFramework_v<version>.zip
+  (with --defiance - SparesSupplyRepairFramework_DefianceLoader_v<version>.zip): the plugin + the framework mini-mod
+  (zone circles) in mods/SparesSupplyRepairFramework;
+- with --mod - the framework + HEMTT Spares (mods/HEMTT_Spares): HEMTT_Spares_v<version>.zip
+  (HEMTT_Spares_DefianceLoader_v<version>.zip), plus the cover <out>/HEMTT_Spares_v<version>_cover.png (1920x1080)
+  and the _banner.png preview (1300x372) for the mod page - this needs --game-src;
+- with --defiance --tablemerge --mod - the same framework + HEMTT Spares, its tables as table-merge patches:
+  HEMTT_Spares_DefianceLoader_TableMerge_v<version>.zip (the cover and preview are the ones above, not made again).
 
-README для игроков - docs/Dist-readme.md: блоки {IF STANDALONE} / {IF DEFIANCE} и {IF FRAMEWORK} / {IF EXAMPLE}
-... {END} (могут быть вложены) попадают только в свой комплект.
+The README for players is docs/Dist-readme.md: blocks {IF STANDALONE} / {IF DEFIANCE}, {IF FRAMEWORK} /
+{IF EXAMPLE} and {IF WHOLE} / {IF TABLEMERGE} (whole tables or table-merge patches) ... {END} (may be nested) go only
+into their own package.
 
 The archive is reproducible: entries in a fixed order, with a fixed date and attributes, so the same files give a
 byte-identical zip (with the same zlib - the one bundled with the Python used). The sha256 of the archive and of the
@@ -62,9 +67,9 @@ def update_sums(path, sums):
 
 
 def pick_variant(text, tags):
-    """Оставить в README блоки {IF <метка>} ... {END}, чья метка есть в tags, остальные выбросить (строки-маркеры -
-    тоже). Блоки могут быть вложены: строка остаётся, только если подходят все блоки вокруг неё. Текст вне
-    блоков - общий для всех комплектов."""
+    """Keep the README blocks {IF <tag>} ... {END} whose tag is in tags, drop the others (the marker lines too).
+    Blocks may be nested: a line stays only if all the blocks around it match. Text outside the blocks is
+    shared by all packages."""
     out, stack = [], []
     for line in text.splitlines(keepends=True):
         tag = line.strip()
@@ -75,35 +80,40 @@ def pick_variant(text, tags):
         elif all(stack):
             out.append(line)
     if stack:
-        sys.exit('README: {IF} без {END}')
+        sys.exit('README: {IF} without {END}')
     return ''.join(out)
 
 
 def main():
-    """Собрать комплект: архив со структурой папки игры (README - с подставленной версией); для комплекта с
-    HEMTT Spares - ещё обложку 1920x1080 и превью 1300x372."""
+    """Build a package: an archive with the game folder structure (README with the version filled in); for the package
+    with HEMTT Spares, also the 1920x1080 cover and the 1300x372 preview."""
     ap = argparse.ArgumentParser()
-    ap.add_argument('--defiance', action='store_true', help='упаковать плагин DefianceLoader, а не отдельную версию')
-    ap.add_argument('--mod', help='HEMTT Spares; без него - комплект только с фреймворком')
-    ap.add_argument('--framework-mod', required=True, help='мини-мод фреймворка (круги зоны)')
-    ap.add_argument('--winhttp', help='только для отдельной версии')
+    ap.add_argument('--defiance', action='store_true', help='pack the DefianceLoader plugin, not the standalone build')
+    ap.add_argument('--mod', help='HEMTT Spares; without it - a framework-only package')
+    ap.add_argument('--tablemerge', action='store_true',
+                    help='with --defiance and --mod: --mod is the table-merge build of HEMTT Spares (build_mod.py '
+                         '--tables patch)')
+    ap.add_argument('--framework-mod', required=True, help='framework mini-mod (zone circles)')
+    ap.add_argument('--winhttp', help='standalone build only')
     ap.add_argument('--plugin', required=True)
-    ap.add_argument('--manifest', help='только с --defiance: spares_repair.plugin.json')
-    ap.add_argument('--game-src', help='нужен с --mod (обложка)')
+    ap.add_argument('--manifest', help='only with --defiance: spares_repair.plugin.json')
+    ap.add_argument('--game-src', help='needed with --mod (cover)')
     ap.add_argument('--version', required=True)
     ap.add_argument('--out', required=True)
     a = ap.parse_args()
     if a.defiance and not a.manifest:
-        ap.error('с --defiance нужен --manifest')
+        ap.error('--defiance needs --manifest')
     if not a.defiance and not a.winhttp:
-        ap.error('нужен --winhttp (или --defiance)')
+        ap.error('--winhttp (or --defiance) is required')
+    if a.tablemerge and not (a.defiance and a.mod):
+        ap.error('--tablemerge needs --defiance and --mod: only DefianceLoader merges table patches')
     if a.mod and not a.game_src:
-        ap.error('с --mod нужен --game-src')
+        ap.error('--mod needs --game-src')
 
-    files = []  # (путь на диске, путь в архиве)
+    files = []  # (path on disk, path in the archive)
 
     def add_mod(folder, name):
-        """Все файлы собранного мода folder - в архив как mods/<name>/..."""
+        """All files of the built mod folder - into the archive as mods/<name>/..."""
         folder = os.path.abspath(folder)
         for dirpath, dirs, names in os.walk(folder):
             dirs.sort()  # a fixed entry order, whatever order the file system lists folders in
@@ -114,7 +124,7 @@ def main():
     add_mod(a.framework_mod, FRAMEWORK)
     if a.mod:
         add_mod(a.mod, 'HEMTT_Spares')
-    if a.defiance:  # DefianceLoader берёт плагин вместе с манифестом из DefianceLoader\plugins
+    if a.defiance:  # DefianceLoader takes the plugin together with its manifest from DefianceLoader\plugins
         files += [(a.plugin, 'DefianceLoader/plugins/spares_repair.dll'),
                   (a.manifest, 'DefianceLoader/plugins/spares_repair.plugin.json')]
     else:
@@ -122,19 +132,21 @@ def main():
                   (a.plugin, 'bin/plugins/SparesSupply.dll')]
     base = 'HEMTT_Spares' if a.mod else FRAMEWORK
     files.append((os.path.join(HERE, '..', 'docs', 'Dist-readme.md'), f'{base}_README.txt'))
-    # руководство для моддеров - во всех комплектах
+    # the modding guide - in all packages
     files.append((os.path.join(HERE, '..', 'docs', 'MODDING.md'), f'{FRAMEWORK}_MODDING.txt'))
     missing = [p for p, _ in files if not os.path.isfile(p)]
     if missing:
-        sys.exit('нет файлов: ' + ', '.join(missing))
+        sys.exit('missing files: ' + ', '.join(missing))
 
-    tags = {'DEFIANCE' if a.defiance else 'STANDALONE', 'EXAMPLE' if a.mod else 'FRAMEWORK'}
+    tags = {'DEFIANCE' if a.defiance else 'STANDALONE', 'EXAMPLE' if a.mod else 'FRAMEWORK',
+            'TABLEMERGE' if a.tablemerge else 'WHOLE'}
     os.makedirs(a.out, exist_ok=True)
-    zip_path = os.path.join(a.out, f'{base}{"_DefianceLoader" if a.defiance else ""}_v{a.version}.zip')
+    variant = ('_DefianceLoader' if a.defiance else '') + ('_TableMerge' if a.tablemerge else '')
+    zip_path = os.path.join(a.out, f'{base}{variant}_v{a.version}.zip')
     sums = {}
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for p, arc in files:
-            if arc.endswith('README.txt'):  # версия и вариант README выбираются при упаковке
+            if arc.endswith('README.txt'):  # the README version and variant are chosen at packaging time
                 text = pick_variant(open(p, encoding='utf-8').read(), tags)
                 data = text.replace('{VERSION}', a.version).encode('utf-8')
             else:
@@ -146,7 +158,7 @@ def main():
     sums[os.path.basename(zip_path)] = sha256(open(zip_path, 'rb').read())
     update_sums(os.path.join(a.out, SUMS), sums)
     print(f'-> {zip_path} ({os.path.getsize(zip_path)} bytes), sha256 {sums[os.path.basename(zip_path)]}')
-    if not a.mod:
+    if not a.mod or a.tablemerge:  # the table-merge package shares the whole-table packages' cover and preview
         return
 
     cover = os.path.join(a.out, f'HEMTT_Spares_v{a.version}_cover.png')
@@ -156,7 +168,7 @@ def main():
     os.remove(tmp_dds)
     print(f'-> {cover}')
 
-    banner = os.path.join(a.out, f'HEMTT_Spares_v{a.version}_banner.png')  # превью 1300x372
+    banner = os.path.join(a.out, f'HEMTT_Spares_v{a.version}_banner.png')  # 1300x372 preview
     subprocess.run([sys.executable, os.path.join(HERE, 'art', 'make_mod_icon.py'), '--banner', banner], check=True,
                    env=env)
     print(f'-> {banner}')
